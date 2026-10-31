@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="미술 교과서 '11. 쓰임과 아름다움'을 펼쳐 보며 문제를 푸는 3D 도자기 공방 방탈출">
+<title>잠긴 도자기 공방</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Nanum+Pen+Script&display=swap">
+<style>
+/* 3D 도자기 공방 · 가장자리에 얇은 HUD · 단서는 종이 카드로 열림 */
+:root{
+  --night:#170f0a; --ink:#f6ecdc; --muted:#cdbda9; --gold:#e9b96e; --celadon:#9fcdb7; --clay:#c77d55;
+  --paper:#f1e5cb; --paper-ink:#3a2618; --paper-line:#c8a878; --ok:#a8dc8f; --bad:#ff9a8a;
+  --panel:rgba(23,15,10,.86); --line:rgba(233,185,110,.42);
+  --display:'Gowun Batang','Nanum Myeongjo','AppleMyungjo',serif;
+  --ui:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  --hand:'Nanum Pen Script','Gowun Dodum',cursive;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--ink);font-family:var(--ui);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#gl.drag{cursor:grabbing}
+#vig{position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(10,5,2,.6) 100%)}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.hud{position:fixed;z-index:5}
+#hudTL{top:calc(14px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:6px;max-width:55vw}
+.roomNo{font-size:12px;letter-spacing:.2em;color:var(--gold)}
+.roomName{font-family:var(--display);font-size:clamp(20px,2.6vw,28px);font-weight:700;text-shadow:0 2px 14px rgba(0,0,0,.7);line-height:1.2}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{min-width:36px;height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:13px;cursor:pointer}
+.tab[aria-current="true"]{background:var(--gold);color:#2a1806;border-color:var(--gold)}
+.tab:disabled{opacity:.35;cursor:default}
+.tab.done::after{content:" ✓"}
+#hudTR{top:calc(14px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.chip{font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:0 14px;min-height:40px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+#timer{cursor:default;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+#hudB{bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:min(660px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:center;gap:10px}
+#guide{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 18px;font-size:15px;line-height:1.55;text-align:center;text-wrap:balance}
+#nextBtn{min-height:46px;padding:0 22px;border-radius:999px;border:none;background:var(--gold);color:#2a1806;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 0 24px rgba(233,185,110,.45);animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 40px rgba(233,185,110,.85)}}
+#toast{position:fixed;z-index:15;left:50%;top:22%;transform:translate(-50%,0);background:rgba(23,15,10,.92);border:1px solid var(--line);border-radius:12px;padding:10px 18px;font-size:15px;max-width:calc(100vw - 32px);text-align:center;pointer-events:none;transition:opacity .35s, transform .35s}
+#toast.off{opacity:0;transform:translate(-50%,8px)}
+#fade{position:fixed;inset:0;z-index:30;background:#0c0704;opacity:0;pointer-events:none;transition:opacity .6s ease}
+#fade.on{opacity:1;pointer-events:auto}
+
+#start{position:fixed;inset:0;z-index:25;display:flex;align-items:center;overflow:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(90deg,rgba(18,10,6,.9) 0%,rgba(18,10,6,.62) 45%,rgba(18,10,6,0) 80%)}
+.startBox{max-width:540px;display:flex;flex-direction:column;gap:16px;padding-left:clamp(0px,5vw,64px);padding-block:24px}
+.eyebrow{font-size:13px;letter-spacing:.24em;color:var(--gold)}
+.startBox h1{font-family:var(--display);font-size:clamp(36px,6vw,64px);line-height:1.08;margin:0;font-weight:700;text-wrap:balance;text-shadow:0 4px 30px rgba(0,0,0,.6)}
+.startBox h1 em{font-style:normal;color:var(--celadon)}
+.story{font-family:var(--display);font-size:17px;line-height:1.75;margin:0;color:#efe2cc;max-width:34em}
+.stages{display:flex;gap:6px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
+.stages li{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:rgba(0,0,0,.25)}
+.stages b{color:var(--gold);margin-right:4px}
+.field{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.field input{font:inherit;font-size:18px;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:12px;padding:12px 14px;max-width:320px;-webkit-user-select:text;user-select:text}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{min-height:48px;padding:0 24px;border-radius:999px;border:none;background:var(--gold);color:#2a1806;font-weight:700;font-size:17px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:400}
+.btn.small{min-height:40px;font-size:15px;padding:0 18px}
+.note{font-size:13px;color:var(--muted);line-height:1.6}
+
+#modal{position:fixed;inset:0;z-index:27;display:grid;place-items:center;background:rgba(10,5,2,.5);
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.card{width:min(600px,100%);max-height:calc(100dvh - 48px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px 24px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5);backdrop-filter:blur(6px);animation:rise .35s ease}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+.card h2{font-family:var(--display);font-size:24px;margin:0 0 4px;text-wrap:balance}
+.card .sub{font-size:13px;letter-spacing:.14em;color:var(--gold);margin-bottom:12px}
+.card p{line-height:1.7;margin:8px 0;font-size:16px}
+.card .task{border-left:3px solid var(--gold);padding:8px 12px;background:rgba(233,185,110,.08);border-radius:0 10px 10px 0}
+.card ul{margin:8px 0;padding-left:20px;line-height:1.7}
+.book{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.55;background:rgba(159,205,183,.1);border:1px dashed rgba(159,205,183,.55);border-radius:10px;padding:8px 12px;margin:10px 0;color:#dcefe5}
+.book::before{content:"교과서";flex:none;font-size:11px;letter-spacing:.1em;background:var(--celadon);color:#132a20;border-radius:6px;padding:2px 6px;margin-top:1px;font-weight:700}
+.card.paper{background:var(--paper);color:var(--paper-ink);border-color:var(--paper-line);backdrop-filter:none;
+  background-image:repeating-linear-gradient(transparent 0 37px,rgba(120,80,40,.16) 37px 38px)}
+.card.paper .sub{color:#8a4f1c}
+.card.paper .book{background:rgba(60,110,90,.1);border-color:rgba(60,110,90,.45);color:#244a3b}
+.card.paper .book::before{background:#3f7a62;color:#fff}
+.card.paper .btn.ghost{color:var(--paper-ink);border-color:#b08a5a}
+.hand{font-family:var(--hand);font-size:29px;line-height:1.3}
+.btnRow{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:18px}
+.fact{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;background:rgba(255,255,255,.05);border-radius:12px;padding:12px 14px;margin:10px 0}
+.fact dt{color:var(--gold)}
+.fact dd{margin:0}
+.swatch{width:100%;height:110px;border-radius:12px;background-size:cover;background-position:center;margin:6px 0 4px;border:1px solid var(--line)}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0 4px}
+.opts button{min-height:48px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);cursor:pointer;font-size:16px;padding:6px 10px;line-height:1.35}
+.opts button:hover{border-color:var(--gold);background:rgba(233,185,110,.12)}
+.opts button.wrong{animation:shake .4s;border-color:var(--bad);color:var(--bad)}
+.opts button.right{border-color:var(--ok);background:rgba(168,220,143,.18)}
+.opts.wide{grid-template-columns:1fr}
+.slots{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.slot{flex:1 1 90px;min-height:58px;border:1px dashed var(--line);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;text-align:center}
+.slot small{font-size:11px;color:var(--muted)}
+.slot b{font-family:var(--display);font-size:17px;color:var(--gold)}
+.slot.fill{border-style:solid;background:rgba(233,185,110,.08)}
+.tiles{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0}
+.tiles button{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.07);cursor:pointer;font-size:16px}
+.tiles button:disabled{opacity:.25;cursor:default}
+.seqList{counter-reset:s;display:flex;flex-direction:column;gap:6px;margin:10px 0;padding:0;list-style:none}
+.seqList li{counter-increment:s;display:flex;gap:10px;align-items:center;min-height:38px;border:1px dashed var(--line);border-radius:10px;padding:4px 12px;font-size:15px}
+.seqList li::before{content:counter(s);font-family:var(--display);color:var(--gold);font-size:18px;width:1.2em}
+.seqList li.fill{border-style:solid;background:rgba(233,185,110,.08)}
+.dialRow{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0}
+.dialRow input{width:4.2em;text-align:center;font-family:var(--display);font-size:40px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:12px;color:var(--ink);font-variant-numeric:tabular-nums;-webkit-user-select:text;user-select:text}
+.dialRow button{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:rgba(0,0,0,.25);cursor:pointer;font-size:15px}
+.dialRow span{font-size:22px}
+.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+.hints{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.hints div{background:rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;line-height:1.6}
+.learned{list-style:none;padding:0;margin:10px 0;display:flex;flex-direction:column;gap:8px}
+.learned li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:baseline;font-size:14px;line-height:1.55}
+.learned b{font-family:var(--display);color:var(--gold);font-size:18px}
+.big{font-family:var(--display);font-size:clamp(28px,5vw,40px);margin:4px 0;color:var(--celadon)}
+#adminStart{position:fixed;z-index:26;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;display:grid;place-items:center;opacity:.7}
+#adminStart:hover,#adminBtn:hover{opacity:1;color:var(--gold)}
+#adminBtn{width:40px;justify-content:center;padding:0}
+#adminBtn.on{background:#5b2a1a;border-color:var(--bad);color:#ffd9cf}
+.pw{display:flex;justify-content:center;margin:14px 0}
+.pw input{width:6em;text-align:center;font-size:32px;letter-spacing:.4em;font-family:var(--display);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:12px;color:var(--ink);padding:8px;-webkit-user-select:text;user-select:text}
+.roomGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0}
+.roomGrid button{min-height:56px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);cursor:pointer;text-align:left;padding:8px 12px;line-height:1.35}
+.roomGrid button b{color:var(--gold);margin-right:6px}
+.roomGrid button[aria-current="true"]{border-color:var(--gold);background:rgba(233,185,110,.15)}
+.ans{margin:8px 0}
+.ans h3{font-family:var(--display);font-size:17px;margin:14px 0 6px;color:var(--gold)}
+.ans table{width:100%;border-collapse:collapse;font-size:14px}
+.ans td{border-top:1px solid rgba(233,185,110,.2);padding:6px 4px;vertical-align:top;line-height:1.5}
+.ans td:first-child{color:var(--muted);width:42%}
+@media (max-width:560px){#hudTL{max-width:60vw}.card{padding:20px 16px 16px}.dialRow input{font-size:32px}}
+@media (prefers-reduced-motion:reduce){#nextBtn{animation:none}.card{animation:none}}
+</style>
+</head>
+<body>
+
+<canvas id="gl" aria-label="3D 도자기 공방. 끌어서 둘러보고 눌러서 조사합니다."></canvas>
+<div id="vig"></div>
+
+<div class="hud" id="hudTL" hidden>
+  <div class="roomNo" id="roomNo">방 1 / 5</div>
+  <div class="roomName" id="roomName">흙을 빚는 방</div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<div class="hud" id="hudTR" hidden>
+  <span class="chip" id="timer" aria-label="걸린 시간">00:00</span>
+  <button class="chip" id="hintBtn" type="button">힌트</button>
+  <button class="chip" id="soundBtn" type="button" aria-pressed="true">소리 켬</button>
+  <button class="chip" id="adminBtn" type="button" aria-label="관리자 모드" title="관리자 모드"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2M16 7l3 3M18.5 4.5l2 2"/></svg></button>
+</div>
+<div class="hud" id="hudB" hidden>
+  <button id="nextBtn" type="button" hidden>다음 방으로</button>
+  <div id="guide"></div>
+</div>
+<div id="toast" class="off" role="status"></div>
+
+<div id="start">
+  <div class="startBox">
+    <div class="eyebrow">미술 방탈출 · 11. 쓰임과 아름다움</div>
+    <h1>잠긴<br><em>도자기</em> 공방</h1>
+    <p class="story">도예가 선생님의 공방에 견학을 왔는데, 가마에 불을 지피는 사이 문이 모두 잠겨 버렸어요. 공방의 다섯 방은 미술 교과서를 펼쳐 정답을 찾아야만 열려요. 교과서를 옆에 두고, 모둠 친구들과 함께 공방을 탈출하세요!</p>
+    <ol class="stages">
+      <li><b>1</b>흙을 빚는 방</li><li><b>2</b>가마실</li><li><b>3</b>장식실</li><li><b>4</b>전시실</li><li><b>5</b>공예 수장고</li>
+    </ol>
+    <label class="field" for="team">모둠 이름
+      <input id="team" maxlength="12" placeholder="예: 청자 모둠" autocomplete="off">
+    </label>
+    <div class="row">
+      <button class="btn" id="startBtn" type="button">탈출 시작</button>
+      <button class="btn ghost" id="resumeBtn" type="button" hidden>이어 하기</button>
+    </div>
+    <div class="note">화면을 끌어서 360도로 둘러보고, 빛나는 물건을 눌러 조사해요.<br>미술 교과서 필수 · 태블릿 가로 화면 · 약 20~25분</div>
+  </div>
+</div>
+
+<button id="adminStart" type="button" aria-label="관리자 모드" title="관리자 모드"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2M16 7l3 3M18.5 4.5l2 2"/></svg></button>
+
+<div id="modal" hidden><div class="card" id="card" role="dialog" aria-modal="true"></div></div>
+<div id="fade"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const TAU=Math.PI*2,D2R=Math.PI/180;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const touch=matchMedia('(pointer: coarse)').matches;
+const rand=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[(Math.random()*a.length)|0];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+
+/* ---------------- state ---------------- */
+const KEY='pottery-escape-v1';
+const NROOM=5;
+function freshState(){return {team:'',started:false,room:0,elapsed:0,hints:0,hintIdx:[0,0,0,0,0],visited:[true,false,false,false,false],intro:[false,false,false,false,false],
+  done:{},seen:{},kilnOrder:false,escaped:false}}
+let S=freshState();
+let ADMIN=false;
+function save(){if(ADMIN)return;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function loadSaved(){try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&s.started&&!s.escaped)return s}catch(e){}return null}
+
+/* ---------------- renderer ---------------- */
+let renderer;
+try{renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,powerPreference:'high-performance'})}
+catch(e){document.body.innerHTML='<p style="padding:40px;font-size:18px">이 기기에서는 3D 화면(WebGL)을 열 수 없어요. 다른 브라우저나 기기로 열어 주세요.</p>';return}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));
+const camera=new THREE.PerspectiveCamera(68,1,0.05,100);
+camera.rotation.order='YXZ';
+function updFov(){camera.updateProjectionMatrix()}
+function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;updFov()}
+addEventListener('resize',resize);resize();
+
+/* ---------------- textures ---------------- */
+function canvasEl(w,h,draw){const cv=document.createElement('canvas');cv.width=w;cv.height=h;draw(cv.getContext('2d'),w,h);return cv}
+function canvasTex(w,h,draw,rep){const t=new THREE.CanvasTexture(canvasEl(w,h,draw));t.anisotropy=4;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1])}return t}
+function speckle(x,w,h,n,cols,rMin,rMax){for(let i=0;i<n;i++){x.fillStyle=pick(cols);x.globalAlpha=rand(.03,.08);x.beginPath();x.arc(rand(0,w),rand(0,h),rand(rMin,rMax),0,TAU);x.fill()}x.globalAlpha=1}
+function plasterTex(hex){return canvasTex(512,512,(x,w,h)=>{x.fillStyle=hex;x.fillRect(0,0,w,h);speckle(x,w,h,1400,['#fff6e4','#7a5a40','#b98d68'],1,9);
+  for(let i=0;i<12;i++){x.strokeStyle='rgba(140,85,55,'+rand(.05,.12)+')';x.lineWidth=rand(6,16);x.lineCap='round';x.beginPath();const sx=rand(0,w),sy=rand(h*.55,h);x.moveTo(sx,sy);x.quadraticCurveTo(sx+rand(-40,40),sy+rand(-40,40),sx+rand(-70,70),sy+rand(-30,30));x.stroke()}})}
+function plankTex(base,n,vertical){return canvasTex(512,512,(x,w,h)=>{const bc=new THREE.Color(base);const pw=(vertical?w:h)/n;
+  for(let i=0;i<n;i++){const c=bc.clone().offsetHSL(rand(-.01,.01),rand(-.05,.05),rand(-.06,.06));x.fillStyle='#'+c.getHexString();if(vertical)x.fillRect(i*pw,0,pw,h);else x.fillRect(0,i*pw,w,pw);
+    x.strokeStyle='rgba(30,15,5,.25)';x.lineWidth=1;for(let k=0;k<9;k++){x.beginPath();const o=i*pw+rand(3,pw-3);if(vertical){x.moveTo(o,0);x.bezierCurveTo(o+rand(-4,4),h*.33,o+rand(-4,4),h*.66,o,h)}else{x.moveTo(0,o);x.bezierCurveTo(w*.33,o+rand(-4,4),w*.66,o+rand(-4,4),w,o)}x.stroke()}
+    x.fillStyle='rgba(20,10,4,.6)';if(vertical)x.fillRect(i*pw,0,2,h);else x.fillRect(0,i*pw,w,2)}})}
+function brickTex(){return canvasTex(512,512,(x,w,h)=>{x.fillStyle='#4a2a1c';x.fillRect(0,0,w,h);const bh=32,bw=64;
+  for(let r=0;r<h/bh;r++)for(let c=-1;c<w/bw+1;c++){const ox=(r%2)*bw/2;const col=new THREE.Color('#9b4a2c').offsetHSL(rand(-.02,.02),0,rand(-.08,.06));x.fillStyle='#'+col.getHexString();x.fillRect(c*bw+ox+2,r*bh+2,bw-4,bh-4)}
+  speckle(x,w,h,900,['#1b0d06','#e0a070'],1,6)})}
+const glowTex=canvasTex(128,128,(x)=>{const g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.25,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,128,128)});
+const ringTex=canvasTex(128,128,(x)=>{x.strokeStyle='#fff';x.lineWidth=7;x.beginPath();x.arc(64,64,40,0,TAU);x.stroke();x.fillStyle='#fff';x.beginPath();x.arc(64,64,14,0,TAU);x.fill()});
+const checkTex=canvasTex(128,128,(x)=>{x.fillStyle='#a8dc8f';x.beginPath();x.arc(64,64,50,0,TAU);x.fill();x.strokeStyle='#1d3315';x.lineWidth=12;x.lineCap='round';x.lineJoin='round';x.beginPath();x.moveTo(40,66);x.lineTo(58,82);x.lineTo(90,46);x.stroke()});
+const qTex=canvasTex(128,128,(x)=>{x.fillStyle='#e9b96e';x.beginPath();x.arc(64,64,50,0,TAU);x.fill();x.fillStyle='#2a1806';x.font='bold 70px Georgia,serif';x.textAlign='center';x.textBaseline='middle';x.fillText('?',64,70)});
+const T={};
+function tex(){if(T.ready)return T;T.ready=true;
+  T.wall=plasterTex('#d6c09c');T.wall.wrapS=T.wall.wrapT=THREE.RepeatWrapping;T.wall.repeat.set(2,1);
+  T.wall2=plasterTex('#cdb48f');T.wall2.wrapS=T.wall2.wrapT=THREE.RepeatWrapping;T.wall2.repeat.set(2,1);
+  T.wall3=plasterTex('#c9c3b4');T.wall3.wrapS=T.wall3.wrapT=THREE.RepeatWrapping;T.wall3.repeat.set(2,1);
+  T.floor=plankTex('#6e4528',8,false);T.floor.wrapS=T.floor.wrapT=THREE.RepeatWrapping;T.floor.repeat.set(2,2);
+  T.ceil=plankTex('#4a2e1c',10,true);T.ceil.wrapS=T.ceil.wrapT=THREE.RepeatWrapping;T.ceil.repeat.set(2,2);
+  T.wood=plankTex('#8a5a34',4,true);T.dark=plankTex('#4b2c18',4,true);T.brick=brickTex();T.brick.wrapS=T.brick.wrapT=THREE.RepeatWrapping;
+  return T}
+
+/* ---------- pot surface textures (u = around, v = up; canvas top = lip) ---------- */
+function bands(x,w,y,col,lw){x.strokeStyle=col;x.lineWidth=lw||3;x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke()}
+function crane(x,cx,cy,s,col){x.save();x.translate(cx,cy);x.scale(s,s);x.fillStyle=col||'#f6f2e6';x.strokeStyle='#262321';x.lineWidth=1.4;
+  x.beginPath();x.ellipse(0,0,10,4,-.3,0,TAU);x.fill();x.stroke();x.beginPath();x.moveTo(-2,-1);x.quadraticCurveTo(-12,-18,-24,-14);x.quadraticCurveTo(-12,-8,-2,-1);x.fill();x.stroke();
+  x.beginPath();x.moveTo(2,-1);x.quadraticCurveTo(10,-20,24,-18);x.quadraticCurveTo(12,-8,2,-1);x.fill();x.stroke();x.beginPath();x.moveTo(8,-3);x.lineTo(18,6);x.stroke();x.fillStyle='#b8332a';x.beginPath();x.arc(18,6,1.8,0,TAU);x.fill();x.restore()}
+function cloud(x,cx,cy,s,col){x.strokeStyle=col||'#f6f2e6';x.lineWidth=2.5*s;x.lineCap='round';for(let k=0;k<3;k++){x.beginPath();x.arc(cx+k*7*s,cy-(k%2)*4*s,5*s,Math.PI*.9,Math.PI*2.1);x.stroke()}x.beginPath();x.moveTo(cx-5*s,cy+3*s);x.quadraticCurveTo(cx+10*s,cy+8*s,cx+26*s,cy+2*s);x.stroke()}
+function crackle(x,w,h,col,n){x.strokeStyle=col;x.lineWidth=.6;x.globalAlpha=.35;for(let i=0;i<n;i++){let px=rand(0,w),py=rand(0,h);x.beginPath();x.moveTo(px,py);for(let k=0;k<4;k++){px+=rand(-14,14);py+=rand(-14,14);x.lineTo(px,py)}x.stroke()}x.globalAlpha=1}
+const POT={
+ sanggam:(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#9cc4ac');g.addColorStop(1,'#6f9c86');x.fillStyle=g;x.fillRect(0,0,w,h);crackle(x,w,h,'#3f6a58',260);
+   bands(x,w,h*.1,'#f2efe2',3);bands(x,w,h*.86,'#f2efe2',3);
+   for(let i=0;i<4;i++){const cx=w*(i+.5)/4,cy=h*.46;x.strokeStyle='#f2efe2';x.lineWidth=3;x.beginPath();x.arc(cx,cy,h*.2,0,TAU);x.stroke();x.strokeStyle='#2d2a26';x.lineWidth=1.2;x.beginPath();x.arc(cx,cy,h*.2+4,0,TAU);x.stroke();crane(x,cx,cy+6,1.4)}
+   for(let i=0;i<8;i++){cloud(x,w*(i/8)+rand(0,20),rand(h*.18,h*.28),.8);crane(x,w*(i/8)+40,h*.78,.8)}},
+ cheolhwa:(x,w,h)=>{x.fillStyle='#ece5d3';x.fillRect(0,0,w,h);speckle(x,w,h,300,['#c9b99a'],1,4);x.strokeStyle='#5b3417';x.lineCap='round';
+   for(let k=0;k<3;k++){const bx=w*(k/3)+40;x.lineWidth=7;x.beginPath();x.moveTo(bx,h*.92);x.bezierCurveTo(bx+30,h*.6,bx-10,h*.4,bx+60,h*.15);x.stroke();
+     x.lineWidth=4;for(let j=0;j<6;j++){const t=j/6,lx=bx+t*55,ly=h*(.85-t*.65);x.beginPath();x.moveTo(lx,ly);x.quadraticCurveTo(lx+rand(15,35),ly-rand(5,25),lx+rand(30,60),ly+rand(-10,10));x.stroke();x.fillStyle='#6a3c1c';x.beginPath();x.ellipse(lx+rand(20,40),ly-rand(0,15),9,5,rand(0,3),0,TAU);x.fill()}}},
+ gwiyal:(x,w,h)=>{x.fillStyle='#5f574b';x.fillRect(0,0,w,h);for(let i=0;i<40;i++){const y=rand(h*.12,h*.85);x.strokeStyle='rgba(236,229,212,'+rand(.45,.85)+')';x.lineWidth=rand(10,26);x.lineCap='round';x.beginPath();const sx=rand(-40,w);x.moveTo(sx,y);x.bezierCurveTo(sx+60,y+rand(-25,25),sx+120,y+rand(-25,25),sx+rand(160,260),y+rand(-15,15));x.stroke();
+   x.strokeStyle='rgba(95,87,75,.45)';x.lineWidth=1;for(let b=0;b<5;b++){x.beginPath();const oy=y+rand(-10,10);x.moveTo(sx,oy);x.lineTo(sx+rand(120,240),oy+rand(-6,6));x.stroke()}}},
+ inhwa:(x,w,h)=>{x.fillStyle='#878272';x.fillRect(0,0,w,h);for(let r=0;r<9;r++){const y=h*.12+r*h*.085;for(let c=0;c<40;c++){const cx=c*(w/40)+(r%2)*6,cy=y;x.fillStyle='#e7e1cf';for(let p=0;p<6;p++){const a=p/6*TAU;x.beginPath();x.arc(cx+Math.cos(a)*3.4,cy+Math.sin(a)*3.4,1.6,0,TAU);x.fill()}x.beginPath();x.arc(cx,cy,1.3,0,TAU);x.fill()}}
+   bands(x,w,h*.07,'#e7e1cf',4);bands(x,w,h*.92,'#e7e1cf',4)},
+ buncheong:(x,w,h)=>{x.fillStyle='#7f7b6c';x.fillRect(0,0,w,h);for(let r=0;r<3;r++){const y=h*.1+r*h*.06;for(let c=0;c<44;c++){x.fillStyle='#e7e1cf';x.beginPath();x.arc(c*(w/44)+(r%2)*5,y,2.4,0,TAU);x.fill()}}
+   x.strokeStyle='#ece6d4';x.lineWidth=7;x.lineCap='round';x.beginPath();for(let i=0;i<=60;i++){const t=i/60,px=t*w,py=h*.5+Math.sin(t*TAU*2)*h*.1;i?x.lineTo(px,py):x.moveTo(px,py)}x.stroke();
+   for(let i=0;i<10;i++){const t=i/10;const px=t*w+20,py=h*.5+Math.sin(t*TAU*2)*h*.1;x.lineWidth=3;x.beginPath();x.arc(px,py-12,7,0,TAU*.8);x.stroke();cloud(x,px+10,h*.72,.9,'#ece6d4')}
+   for(let c=0;c<44;c++){x.fillStyle='#e7e1cf';x.beginPath();x.arc(c*(w/44),h*.88,2.4,0,TAU);x.fill()}},
+ cheonghwa:(x,w,h)=>{x.fillStyle='#f3f1ea';x.fillRect(0,0,w,h);x.strokeStyle='#2b4fa0';x.fillStyle='#2b4fa0';x.lineCap='round';
+   x.lineWidth=6;x.beginPath();for(let i=0;i<=80;i++){const t=i/80,px=t*w,py=h*.5+Math.sin(t*TAU*1.5)*h*.16;i?x.lineTo(px,py):x.moveTo(px,py)}x.stroke();
+   x.lineWidth=2;for(let i=0;i<40;i++){const t=i/40,px=t*w,py=h*.5+Math.sin(t*TAU*1.5)*h*.16;x.beginPath();x.moveTo(px,py);x.lineTo(px+6,py-8);x.stroke()}
+   for(let i=0;i<7;i++)cloud(x,i*w/7+10,h*(i%2?.2:.8),1.1,'#2b4fa0');
+   for(let i=0;i<14;i++){x.fillStyle='#1d2f5e';x.beginPath();x.ellipse(rand(0,w),rand(h*.3,h*.7),6,4,0,0,TAU);x.fill()}},
+ white:(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#f6f3ea');g.addColorStop(1,'#e8e2d2');x.fillStyle=g;x.fillRect(0,0,w,h);speckle(x,w,h,160,['#d9cfb8','#efe7d4'],4,30)},
+ bisque:(x,w,h)=>{x.fillStyle='#d9a586';x.fillRect(0,0,w,h);speckle(x,w,h,400,['#e8bca2','#b77d5d'],1,6)},
+ clay:(x,w,h)=>{x.fillStyle='#a8714f';x.fillRect(0,0,w,h);for(let y=0;y<h;y+=5){x.strokeStyle='rgba(60,30,15,'+rand(.06,.18)+')';x.lineWidth=rand(1,2.5);x.beginPath();x.moveTo(0,y);x.lineTo(w,y+rand(-1,1));x.stroke()}speckle(x,w,h,300,['#c48e6a','#6e4429'],1,5)},
+ jiseung:(x,w,h)=>{x.fillStyle='#b88f5c';x.fillRect(0,0,w,h);for(let r=0;r<h;r+=8){for(let c=0;c<w;c+=8){x.fillStyle=((r+c)/8)%2?'#e2cda3':'#9c7444';x.fillRect(c+1,r+1,6,6);x.strokeStyle='rgba(60,40,20,.4)';x.strokeRect(c+1,r+1,6,6)}}}
+};
+const POTCV={};
+function potTex(kind){if(!POTCV[kind])POTCV[kind]=canvasEl(512,256,POT[kind]);const t=new THREE.CanvasTexture(POTCV[kind]);t.anisotropy=4;return t}
+function potURL(kind){if(!POTCV[kind])POTCV[kind]=canvasEl(512,256,POT[kind]);return POTCV[kind].toDataURL()}
+
+function textCanvasTex(w,h,bg,lines,o){o=o||{};return canvasTex(w,h,(x)=>{x.fillStyle=bg;x.fillRect(0,0,w,h);if(o.lines){x.strokeStyle='rgba(120,80,40,.18)';for(let y=60;y<h;y+=40){x.beginPath();x.moveTo(16,y);x.lineTo(w-16,y);x.stroke()}}
+  if(o.border){x.strokeStyle=o.border;x.lineWidth=8;x.strokeRect(6,6,w-12,h-12)}
+  x.textAlign='center';x.textBaseline='middle';lines.forEach(L=>{x.fillStyle=L.c||'#3a2618';x.font=L.f;x.fillText(L.t,w/2,L.y)})})}
+function textSprite(txt,h){const px=46,font=`${px}px 'Gowun Dodum',sans-serif`;const m=document.createElement('canvas').getContext('2d');m.font=font;const w=Math.ceil(m.measureText(txt).width)+40,H=px+28;
+  const t=canvasTex(w,H,(x)=>{x.fillStyle='rgba(23,15,10,.74)';const r=H/2;x.beginPath();x.moveTo(r,0);x.lineTo(w-r,0);x.arc(w-r,r,r,-Math.PI/2,Math.PI/2);x.lineTo(r,H);x.arc(r,r,r,Math.PI/2,Math.PI*1.5);x.fill();x.fillStyle='#f6ecdc';x.font=font;x.textAlign='center';x.textBaseline='middle';x.fillText(txt,w/2,H/2+2)});
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false,depthTest:false}));s.scale.set(h*w/H,h,1);s.renderOrder=8;return s}
+function glowSprite(color,scale,op){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color,transparent:true,opacity:op==null?.6:op,depthWrite:false,blending:THREE.AdditiveBlending}));s.scale.setScalar(scale);return s}
+
+/* ---------------- geometry helpers ---------------- */
+const FLOOR=-1.5,CEIL=2.45,HALF=4.6,TOP=.8;
+const OUTLINE=new THREE.LineBasicMaterial({color:0x24140a,transparent:true,opacity:.55});
+function outline(m){m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),OUTLINE));return m}
+const lamC={};function lam(hex){return lamC[hex]||(lamC[hex]=new THREE.MeshLambertMaterial({color:hex}))}
+function tlam(t,hex){return new THREE.MeshLambertMaterial({map:t,color:hex||0xffffff})}
+function box(w,h,d,mat,x,y,z,parent,noLine){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);if(!noLine)outline(m);m.position.set(x,y,z);if(parent)parent.add(m);return m}
+function cyl(rt,rb,h,mat,x,y,z,parent,seg){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||20),mat);m.position.set(x,y,z);if(parent)parent.add(m);return m}
+function lathe(pts,mat,seg){return new THREE.Mesh(new THREE.LatheGeometry(pts.map(p=>new THREE.Vector2(p[0],p[1])),seg||48),mat)}
+function potMat(kind){return new THREE.MeshLambertMaterial({map:potTex(kind),side:THREE.DoubleSide})}
+const PROF={
+ bowl:[[0,0],[.1,0],[.12,.01],[.17,.05],[.21,.11],[.22,.14],[.215,.145]],
+ cup:[[0,0],[.06,0],[.075,.02],[.085,.08],[.09,.14],[.088,.15]],
+ vase:[[0,0],[.09,0],[.1,.02],[.14,.12],[.16,.22],[.13,.32],[.07,.4],[.06,.46],[.08,.5]],
+ jar:[[0,0],[.12,0],[.15,.08],[.22,.25],[.24,.36],[.2,.48],[.12,.54],[.11,.58],[.12,.6]],
+ maebyeong:[[0,0],[.1,0],[.11,.02],[.1,.1],[.12,.22],[.17,.36],[.2,.44],[.19,.5],[.13,.56],[.06,.6],[.05,.63],[.07,.65],[.05,.66]],
+ moon:[[0,0],[.12,0],[.2,.06],[.27,.18],[.29,.3],[.27,.43],[.2,.54],[.12,.59],[.11,.62],[.12,.63]],
+ bottle:[[0,0],[.08,0],[.12,.06],[.14,.14],[.12,.22],[.05,.3],[.035,.4],[.05,.44]]
+};
+function pot(kind,prof,s){const m=lathe(PROF[prof],potMat(kind));if(s)m.scale.setScalar(s);return m}
+const P=(deg,d,y)=>V3(Math.sin(deg*D2R)*d,y,-Math.cos(deg*D2R)*d);
+function faceIn(o){o.lookAt(0,o.position.y,0);return o}
+function wallPos(deg,along,y,inset){const a=deg*D2R;return P(deg,HALF-(inset||0),y).add(V3(Math.cos(a)*along,0,Math.sin(a)*along))}
+function wp(g,x,y,z){g.updateMatrixWorld(true);return g.localToWorld(V3(x,y,z))}
+/* a group standing on the floor at angle/dist, facing the player */
+function station(scene,deg,dist){const g=new THREE.Group();g.position.copy(P(deg,dist,FLOOR));faceIn(g);scene.add(g);return g}
+function table(g,w,d,woodMat){const top=box(w,.07,d,woodMat||tlam(tex().wood),0,TOP-.035,0,g);for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]])box(.07,TOP-.07,.07,lam('#4a2c18'),a*(w/2-.08),(TOP-.07)/2,b*(d/2-.08),g);return top}
+function pedestal(g,h,w){box(w||.62,h,w||.62,lam('#e8dcc4'),0,h/2,0,g);box((w||.62)+.08,.05,(w||.62)+.08,lam('#5a3a24'),0,h+.025,0,g);return h+.05}
+
+/* ---------------- room shell ---------------- */
+function baseRoom(o){const t=tex();const scene=new THREE.Scene();scene.background=new THREE.Color('#1b120c');
+  scene.add(new THREE.HemisphereLight(0xfff0d8,0x4a3020,o.hemi||.78));
+  const lamp=new THREE.PointLight(o.lampCol||0xffc887,o.lamp||1.05,15,1.4);lamp.position.set(0,1.9,0);scene.add(lamp);
+  const H=CEIL-FLOOR,mid=(CEIL+FLOOR)/2;const wm=tlam(o.wallTex||t.wall);
+  for(const deg of [0,90,180,270]){const w=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2,H),wm);w.position.copy(P(deg,HALF,mid));faceIn(w);scene.add(w);
+    const wain=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2,.8),tlam(t.dark));wain.position.copy(P(deg,HALF-.01,FLOOR+.4));faceIn(wain);scene.add(wain);
+    const rail=box(HALF*2,.06,.06,lam('#3a2212'),0,0,0,null);rail.position.copy(P(deg,HALF-.03,FLOOR+.82));faceIn(rail);scene.add(rail)}
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2,HALF*2),tlam(t.floor));fl.rotation.x=-Math.PI/2;fl.position.y=FLOOR;scene.add(fl);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2,HALF*2),tlam(t.ceil));ce.rotation.x=Math.PI/2;ce.position.y=CEIL;scene.add(ce);
+  for(let i=-2;i<=2;i++)box(HALF*2,.2,.2,lam('#3b2414'),0,CEIL-.1,i*1.8,scene);
+  /* hanging lamp */
+  const cord=cyl(.008,.008,.5,lam('#222'),0,CEIL-.25,0,scene,6);const shade=new THREE.Mesh(new THREE.ConeGeometry(.26,.2,24,1,true),new THREE.MeshLambertMaterial({color:'#2f4d42',side:THREE.DoubleSide}));shade.position.set(0,CEIL-.58,0);scene.add(shade);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),new THREE.MeshBasicMaterial({color:'#fff2c8'}));bulb.position.set(0,CEIL-.66,0);scene.add(bulb);const bg=glowSprite(0xffd38a,1.4,.55);bg.position.copy(bulb.position);scene.add(bg);
+  const R={scene,hits:[],items:{},markers:[],spin:[],pulse:[],camPos:[0,0,0],yaw0:o.yaw0||0,pitch0:-.08,pmin:-1.0,pmax:.75};
+  if(o.window!=null)addWindow(scene,o.window[0],o.window[1]);
+  if(o.door!=null)R.door=addDoor(R,o.door);
+  (o.shelves||[]).forEach(s=>wallShelf(scene,s[0],s[1],s[2],s[3]));
+  return R}
+function addWindow(scene,deg,along){const g=new THREE.Group();g.position.copy(wallPos(deg,along,.75,.02));faceIn(g);scene.add(g);
+  const sky=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.0),new THREE.MeshBasicMaterial({map:canvasTex(256,200,(x,w,h)=>{const gr=x.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#bfe0ef');gr.addColorStop(.7,'#f3ecd0');gr.addColorStop(1,'#9bbf86');x.fillStyle=gr;x.fillRect(0,0,w,h);x.fillStyle='#6f9a5e';for(let i=0;i<9;i++){x.beginPath();x.arc(rand(0,w),h,rand(20,50),Math.PI,0);x.fill()}})}));g.add(sky);
+  const fm=lam('#3a2212');box(1.42,.08,.1,fm,0,.54,.03,g);box(1.42,.08,.1,fm,0,-.54,.03,g);box(.08,1.08,.1,fm,-.69,0,.03,g);box(.08,1.08,.1,fm,.69,0,.03,g);box(.05,1.0,.06,fm,0,0,.03,g);box(1.3,.05,.06,fm,0,.05,.03,g);
+  box(1.6,.06,.24,lam('#5a3a24'),0,-.6,.1,g);
+  const gl=glowSprite(0xfff3d0,2.6,.25);gl.position.z=.3;g.add(gl);
+  const dl=new THREE.DirectionalLight(0xfff1d6,.35);dl.position.copy(g.position);dl.target.position.set(0,FLOOR,0);scene.add(dl);scene.add(dl.target)}
+function wallShelf(scene,deg,along,y,w){const g=new THREE.Group();g.position.copy(wallPos(deg,along,y,.18));faceIn(g);scene.add(g);
+  box(w,.05,.32,tlam(tex().wood),0,0,0,g);box(.04,.18,.25,lam('#3a2212'),-w/2+.15,-.11,-.02,g);box(.04,.18,.25,lam('#3a2212'),w/2-.15,-.11,-.02,g);
+  const kinds=['bisque','white','sanggam','clay','cheolhwa','buncheong','inhwa','bisque','white'],profs=['vase','jar','cup','bowl','bottle'];let x=-w/2+.18;
+  while(x<w/2-.15){const p=pot(pick(kinds),pick(profs),rand(.55,.9));p.position.set(x,.025,0);g.add(p);x+=rand(.24,.36)}return g}
+function addDoor(R,deg){const g=new THREE.Group();g.position.copy(wallPos(deg,0,FLOOR+1.1,.03));faceIn(g);R.scene.add(g);
+  const dm=tlam(plankTex('#6b4024',5,true));box(1.1,2.2,.08,dm,0,0,0,g);const fm=lam('#2e1a0e');box(1.3,.12,.14,fm,0,1.15,0,g);box(.1,2.3,.14,fm,-.6,0,0,g);box(.1,2.3,.14,fm,.6,0,0,g);
+  for(const y of [.7,-.7])box(1.0,.08,.03,lam('#2e1a0e'),0,y,.06,g);
+  const plate=box(.16,.3,.03,lam('#b98b3e'),.38,0,.06,g);const knob=new THREE.Mesh(new THREE.SphereGeometry(.05,12,8),lam('#d9a94a'));knob.position.set(.38,.02,.1);g.add(knob);
+  const lock=new THREE.Group();box(.22,.18,.07,lam('#c9963a'),0,0,0,lock);const sh=new THREE.Mesh(new THREE.TorusGeometry(.07,.018,6,16,Math.PI),lam('#9a9a9a'));sh.position.y=.09;lock.add(sh);lock.position.set(.38,-.25,.12);g.add(lock);
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(1.8,2.9),new THREE.MeshBasicMaterial({map:glowTex,color:'#ffd27a',transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));glow.position.z=.1;g.add(glow);
+  const label=textSprite('출구',.2);label.position.set(0,1.42,.1);g.add(label);
+  const hit=new THREE.Mesh(new THREE.BoxGeometry(1.2,2.3,.3),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));hit.userData={id:'door'};g.add(hit);R.hits.push(hit);
+  return {g,glow,lock}}
+
+/* interactive item: invisible hit sphere + floating marker */
+function addItem(R,id,pos,r,my,kind){const hit=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));hit.position.copy(pos);hit.scale.setScalar(r);hit.userData={id};R.scene.add(hit);R.hits.push(hit);
+  const g=new THREE.Group();g.position.copy(pos).add(V3(0,my,0));const gl=glowSprite(kind==='puzzle'?0xffc870:0x9fe3c5,.5,.55);const ic=new THREE.Sprite(new THREE.SpriteMaterial({map:kind==='puzzle'?qTex:ringTex,color:kind==='puzzle'?0xffffff:0xc8f0dc,transparent:true,depthWrite:false,depthTest:false}));ic.scale.setScalar(.14);ic.renderOrder=7;g.add(gl);g.add(ic);R.scene.add(g);
+  const it={id,g,gl,ic,base:g.position.y,kind,phase:Math.random()*6};R.items[id]=it;R.markers.push(it);return it}
+function markItem(R,id){const it=R.items[id];if(!it)return;const k=R.key+'.'+id;
+  if(S.done[k]){it.ic.material.map=checkTex;it.ic.material.color.set(0xffffff);it.ic.material.needsUpdate=true;it.gl.material.color.set(0x8fd47a);it.gl.material.opacity=.25;it.state='done'}
+  else if(S.seen[k]){it.gl.material.opacity=.25;it.state='seen'}}
+function updMarkers(R,t){R.markers.forEach(it=>{it.g.position.y=it.base+Math.sin(t*1.6+it.phase)*.04;if(it.state!=='done'&&it.state!=='seen')it.gl.material.opacity=.4+.25*Math.sin(t*2.4+it.phase)})}
+
+/* ---------------- audio ---------------- */
+const AU={ctx:null,on:true,master:null};
+function auInit(){if(AU.ctx)return;try{const c=new(window.AudioContext||window.webkitAudioContext)();AU.ctx=c;AU.master=c.createGain();AU.master.gain.value=AU.on?.9:0;AU.master.connect(c.destination);
+  /* kiln crackle / room tone */const len=c.sampleRate*2,buf=c.createBuffer(1,len,c.sampleRate),d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*(Math.random()<.002?1:.04);
+  const src=c.createBufferSource();src.buffer=buf;src.loop=true;const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=900;const g=c.createGain();g.gain.value=.12;src.connect(f);f.connect(g);g.connect(AU.master);src.start()}catch(e){AU.ctx=null}}
+function auChime(f,vol){if(!AU.ctx)return;const c=AU.ctx,n=c.currentTime;vol=vol||.16;[1,2.76,5.4].forEach((m,i)=>{const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=f*m;g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(vol/(i+1.5),n+.005);g.gain.exponentialRampToValueAtTime(.0001,n+1.6/(1+i));o.connect(g);g.connect(AU.master);o.start(n);o.stop(n+2)})}
+function auArp(base){[0,4,7,12,16].forEach((s,i)=>setTimeout(()=>auChime(base*Math.pow(2,s/12),.13),i*110))}
+function auBuzz(){if(!AU.ctx)return;const c=AU.ctx,n=c.currentTime,o=c.createOscillator(),g=c.createGain(),f=c.createBiquadFilter();o.type='sawtooth';o.frequency.value=110;f.type='lowpass';f.frequency.value=600;g.gain.setValueAtTime(.08,n);g.gain.exponentialRampToValueAtTime(.0001,n+.35);o.connect(f);f.connect(g);g.connect(AU.master);o.start(n);o.stop(n+.4)}
+
+/* ---------------- cards ---------------- */
+let modalOpen=false;
+function openCard(html,buttons,cls){const card=$('card');card.className='card '+(cls||'');card.innerHTML=html+(buttons&&buttons.length?'<div class="btnRow">'+buttons.map((b,i)=>`<button class="btn small ${b[2]||''}" type="button" data-i="${i}">${b[0]}</button>`).join('')+'</div>':'');
+  card.querySelectorAll('.btnRow button').forEach(el=>el.onclick=()=>buttons[+el.dataset.i][1]());$('modal').hidden=false;modalOpen=true;card.scrollTop=0;const f=card.querySelector('.btnRow button:last-child')||card.querySelector('button');f&&f.focus({preventScroll:true});return card}
+function closeModal(){$('modal').hidden=true;modalOpen=false;renderHUD();if(cur&&S.started&&!S.escaped&&cur.isSolved()&&!cur._cel){cur._cel=true;setTimeout(()=>roomSolved(cur),350)}}
+const book=s=>`<div class="book">${s}</div>`;
+function seeItem(R,id){const k=R.key+'.'+id;if(!S.seen[k]){S.seen[k]=true;save();markItem(R,id);renderGuide()}}
+function solveItem(R,id){const k=R.key+'.'+id;S.done[k]=true;S.seen[k]=true;save();markItem(R,id);auArp(523.25);renderHUD()}
+/* multiple-choice question card */
+function mcCard(R,id,q){const opts=shuffle(q.options);
+  const card=openCard(`<div class="sub">${q.sub}</div><h2>${q.title}</h2>${q.img?`<div class="swatch" style="background-image:url(${q.img})" role="img" aria-label="표면 확대"></div>`:''}${q.body||''}
+    <p class="task">${q.q}</p><div class="opts ${q.wide?'wide':''}">${opts.map((o,i)=>`<button type="button" data-i="${i}">${esc(o)}</button>`).join('')}</div>${book(q.book)}<p id="fb" class="note" aria-live="polite"></p>`,[['닫기',closeModal,'ghost']]);
+  card.querySelectorAll('.opts button').forEach(b=>b.onclick=()=>{const o=opts[+b.dataset.i];
+    if(o===q.answer){b.classList.add('right');auChime(880,.1);setTimeout(()=>{solveItem(R,id);openCard(`<div class="sub">${q.sub} · 정답</div><h2>${esc(q.answer)}</h2>${q.img?`<div class="swatch" style="background-image:url(${q.img})"></div>`:''}<p>${q.explain}</p>${book(q.book)}`,[[R.isSolved()?'확인':'계속 조사하기',closeModal]])},450)}
+    else{b.classList.remove('wrong');void b.offsetWidth;b.classList.add('wrong');auBuzz();card.querySelector('#fb').textContent=q.wrong||'아쉬워요. 교과서를 다시 살펴보고 골라 보세요.'}})}
+function infoCard(R,id,sub,title,html,bk,paper){seeItem(R,id);auChime(660,.07);openCard(`<div class="sub">${sub}</div><h2>${title}</h2>${html}${bk?book(bk):''}`,[['닫기',closeModal]],paper?'paper':'')}
+function roomSolved(R){const i=R.idx;auArp(659.25);
+  const last=i===NROOM-1;
+  openCard(`<div class="sub">${ROOMDEF[i].no} · 통과</div><h2>${last?'마지막 문이 열렸어요!':'문의 자물쇠가 풀렸어요'}</h2><p>${ROOMDEF[i].solvedMsg}</p>${book(ROOMDEF[i].book)}`,
+    [['조금 더 둘러보기',closeModal,'ghost'],[last?'공방 탈출하기':'다음 방으로',()=>{closeModal();last?escapeNow():goRoom(i+1)}]])}
+
+/* ======================= ROOM 1 · 흙을 빚는 방 (성형) ======================= */
+function wobble(mesh,amt){const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),y=p.getY(i);const a=Math.atan2(z,x);const k=1+amt*(Math.sin(a*3+y*30)*.6+Math.sin(a*7)*.4)+rand(-amt,amt)*.4;p.setX(i,x*k);p.setZ(i,z*k);p.setY(i,y+(y>.1?Math.sin(a*4)*amt*.12:0))}p.needsUpdate=true;mesh.geometry.computeVertexNormals();return mesh}
+function buildRoom1(){const R=baseRoom({window:[90,-.9],door:180,shelves:[[0,-2.6,.9,1.6],[0,2.6,.9,1.6],[270,-1.2,.6,2.2],[270,-1.2,1.3,2.2]]});
+  R.key='r1';const sc=R.scene;
+  /* 0° wheel */
+  {const g=station(sc,0,2.6);box(.9,.45,.9,lam('#5b3a22'),0,.225,0,g);box(.95,.06,.95,lam('#3a2414'),0,.48,0,g);
+   const head=cyl(.34,.34,.05,lam('#8e8f8c'),0,.53,0,g,32);const bowl=pot('clay','bowl',1.5);bowl.position.set(0,.555,0);g.add(bowl);R.spin.push(head,bowl);
+   const stool=new THREE.Group();stool.position.set(.85,0,.15);g.add(stool);cyl(.2,.2,.04,lam('#6b4428'),0,.5,0,stool);for(let k=0;k<3;k++){const a=k/3*TAU;const l=cyl(.02,.02,.5,lam('#3a2414'),Math.cos(a)*.14,.25,Math.sin(a)*.14,stool,6)}
+   for(let k=0;k<3;k++){const c=pot('clay','bowl',.75);c.position.set(.85+(k-1)*.12,.52+k*0,.15+(k%2)*.1);if(k===1)c.position.set(.85,.52,-.02);stool.add(c);c.position.sub(stool.position)}
+   cyl(.07,.07,.12,lam('#7aa3b5'),-.6,.55,.25,g);addItem(R,'wheel',wp(g,0,.75,0),.55,.45)}
+  /* 72° pinched cups */
+  {const g=station(sc,72,2.7);table(g,1.3,.75);for(let k=0;k<3;k++){const c=wobble(pot('clay','cup',1.1+k*.15),.09);c.position.set(-.35+k*.35,TOP,k===1?.08:-.05);g.add(c)}
+   const lump=new THREE.Mesh(new THREE.SphereGeometry(.12,16,10),lam('#a8714f'));lump.scale.y=.6;lump.position.set(.5,TOP+.05,.2);g.add(lump);addItem(R,'pinch',wp(g,0,TOP+.15,0),.6,.45)}
+  /* 144° coil pot */
+  {const g=station(sc,144,2.7);box(.8,.35,.8,lam('#5b3a22'),0,.175,0,g);const prof=[.2,.24,.28,.31,.33,.34,.33,.31,.28,.24,.2,.18,.17];
+   prof.forEach((r,i)=>{const t=new THREE.Mesh(new THREE.TorusGeometry(r,.042,8,40),tlam(potTex('clay')));t.rotation.x=Math.PI/2;t.position.set(rand(-.006,.006),.4+i*.078,rand(-.006,.006));g.add(t)});
+   const disc=cyl(.2,.2,.04,lam('#a8714f'),0,.37,0,g,24);
+   const tbl=new THREE.Group();tbl.position.set(.75,0,.3);g.add(tbl);box(.5,.5,.5,lam('#6b4428'),0,.25,0,tbl);for(let k=0;k<3;k++){const c=new THREE.Mesh(new THREE.TorusGeometry(.12-k*.02,.03,6,24),lam('#a8714f'));c.rotation.x=Math.PI/2;c.position.set(0,.53+k*.05,0);tbl.add(c)}
+   addItem(R,'coil',wp(g,0,1.0,0),.6,.6)}
+  /* 216° slab box */
+  {const g=station(sc,216,2.7);table(g,1.4,.8);const m=tlam(potTex('clay'));const b=new THREE.Group();b.position.set(-.2,TOP,0);b.rotation.y=.3;g.add(b);
+   box(.42,.02,.42,m,0,.01,0,b);box(.42,.3,.03,m,0,.16,.2,b);box(.42,.3,.03,m,0,.16,-.2,b);box(.03,.3,.42,m,.2,.16,0,b);box(.03,.3,.42,m,-.2,.16,0,b);
+   const b2=new THREE.Group();b2.position.set(.35,TOP,.05);b2.rotation.y=-.4;g.add(b2);box(.22,.4,.22,m,0,.2,0,b2);
+   box(.5,.015,.35,m,.3,TOP+.008,-.25,g);const pin=cyl(.035,.035,.6,lam('#c79b6a'),.25,TOP+.05,-.22,g,12);pin.rotation.z=Math.PI/2;addItem(R,'slab',wp(g,0,TOP+.2,0),.6,.5)}
+  /* 288° note board */
+  {const g=new THREE.Group();g.position.copy(P(288,HALF-.06,.55));faceIn(g);sc.add(g);box(1.5,1.0,.04,lam('#a87a4a'),0,0,0,g);
+   const paper=new THREE.Mesh(new THREE.PlaneGeometry(.9,.62),new THREE.MeshLambertMaterial({map:textCanvasTex(450,310,'#f1e5cb',[{t:'공방 노트',f:"bold 44px 'Gowun Batang',serif",y:56},{t:'흙을 빚는 네 가지 방법',f:"38px 'Nanum Pen Script',cursive",y:130},{t:'핀칭 · 코일링 · 판 · 물레',f:"38px 'Nanum Pen Script',cursive",y:190},{t:'— 작품을 보고 맞혀 보세요',f:"30px 'Nanum Pen Script',cursive",y:260,c:'#8a4f1c'}],{lines:true})}));paper.position.set(-.15,0,.03);paper.rotation.z=.03;g.add(paper);
+   const pin=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),lam('#c0392b'));pin.position.set(-.15,.28,.05);g.add(pin);
+   const tools=[[.5,.2,'#c79b6a'],[.5,-.05,'#888'],[.5,-.3,'#c79b6a']];tools.forEach(([x,y,c])=>{const t=box(.3,.03,.03,lam(c),x,y,.04,g,true);t.rotation.z=.2});
+   addItem(R,'note',wp(g,0,0,.1),.55,.5,'clue')}
+  /* clay bags & buckets */
+  {const g=station(sc,320,3.6);for(let k=0;k<3;k++){const b=box(.45,.25,.32,lam('#7d8a72'),k*.1-.1,.125+k*.25,0,g);b.rotation.y=rand(-.3,.3)}cyl(.2,.17,.4,lam('#7a7a78'),.6,.2,.1,g)}
+  const Q={
+   wheel:{title:'빙글빙글 도는 받침 위의 그릇',q:'이 그릇들은 어떤 성형 방법으로 만들었을까요?',body:'<p>회전하는 받침 위에 좌우가 똑같은 그릇이 놓여 있고, 옆에는 똑같은 모양의 그릇이 여러 개 쌓여 있어요.</p>',answer:'물레 성형',explain:'물레 위에 흙을 올려 두고 회전시키면서 형태를 만들어요. <b>대칭 형태를 빠른 속도로</b> 만들 때 주로 사용해요.'},
+   pinch:{title:'손가락 자국이 남은 작은 컵',q:'이 컵들은 어떤 성형 방법으로 만들었을까요?',body:'<p>컵마다 모양이 조금씩 삐뚤빼뚤하고, 표면에 손가락으로 꾹꾹 누른 자국이 남아 있어요.</p>',answer:'핀칭 기법',explain:'흙을 손가락으로 꼬집듯이 눌러 컵의 형태를 만들어요. <b>비정형적이고 자유분방한 느낌</b>을 주기 위해 사용해요.'},
+   coil:{title:'층층이 쌓아 올린 커다란 항아리',q:'이 항아리는 어떤 성형 방법으로 만들고 있을까요?',body:'<p>가늘고 긴 흙 띠가 바닥부터 한 줄씩 둥글게 쌓여 있어요. 크기가 아주 커요.</p>',answer:'코일링 기법',explain:'흙을 가늘고 길게 만든 후 아래부터 쌓아 올려 형태를 만들어요. <b>자유로운 형태와 거대한 크기</b>의 형태를 만드는 데 사용해요.'},
+   slab:{title:'모서리가 반듯한 네모 상자',q:'이 상자는 어떤 성형 방법으로 만들었을까요?',body:'<p>밀대로 납작하게 민 흙판이 옆에 있고, 상자는 모서리가 각져 있어요.</p>',answer:'판 성형',explain:'흙을 판처럼 납작하게 만든 후 판을 붙여 만들어요. 주로 <b>각진 형태</b>를 만들 때 사용해요.'}};
+  const BK='「빚어서 구워내다」 › <b>도자의 성형 방법</b> 네 가지 사진과 설명을 찾아보세요.';
+  R.on={note:()=>infoCard(R,'note','공방 노트','도자 공예란?',`<div class="hand">도자 공예는 흙을 반죽하여 빚고 불에 구운 후, 장식하여 제작해. 흙이라서 자유로운 형태로 만들 수 있고, 높은 온도로 구우면 모양이 그대로 유지되지!</div><p class="note" style="color:#6b4a2c">이 방의 작품 네 점은 서로 다른 방법으로 빚었어요. 교과서에서 성형 방법을 찾아 하나씩 맞혀 보세요.</p>`,'11단원 「쓰임과 아름다움」 첫 쪽 › <b>빚어서 구워내다</b>',true)};
+  Object.keys(Q).forEach(id=>R.on[id]=()=>{if(S.done['r1.'+id]){toast('이미 맞힌 작품이에요: '+Q[id].answer);return}seeItem(R,id);mcCard(R,id,Object.assign({sub:'방 1 · 성형 방법',options:['핀칭 기법','코일링 기법','판 성형','물레 성형'],book:BK},Q[id]))});
+  R.need=['wheel','pinch','coil','slab'];
+  return R}
+
+/* ======================= ROOM 2 · 가마실 (제작 과정) ======================= */
+const STEPS=[['꼬막 밀기','흙을 발로 꾹꾹 밟아 안에 있는 공기를 빼낸다.'],['성형하기','빚기, 물레 사용하기 등의 방법을 써서 도자기 모양을 만든다.'],['무늬 새기기','도자기 표면에 조각도 등으로 문양을 새긴다.'],['초벌구이','그늘에서 말린 도자기를 800~1,000℃에서 구운 다음 가마 안에서 천천히 식힌다.'],['유약 바르기','유약이 담긴 통에 그릇을 담가 균일하게 그릇 표면에 도포한다.'],['재벌구이','1,250℃ 이상의 고온에서 다시 구워 완성한다.']];
+function buildRoom2(){const R=baseRoom({door:180,wallTex:tex().wall2,lamp:.9,shelves:[[90,1.6,.9,1.4],[270,-1.6,1.0,1.4]]});R.key='r2';const sc=R.scene;
+  /* kiln */
+  {const g=station(sc,0,3.25);const bm=tlam(T.brick);box(2.3,.55,1.6,bm,0,.275,0,g);
+   const dome=new THREE.Mesh(new THREE.SphereGeometry(1.0,28,14,0,TAU,0,Math.PI/2),bm);dome.scale.set(1.12,1.05,.78);dome.position.y=.55;g.add(dome);
+   const ch=cyl(.18,.22,CEIL-FLOOR-1.3,bm,0,1.3+(CEIL-FLOOR-1.3)/2,-.5,g,12);
+   const mouth=new THREE.Mesh(new THREE.CircleGeometry(.36,24,0,Math.PI),new THREE.MeshBasicMaterial({color:'#120804'}));mouth.position.set(0,.6,.79);g.add(mouth);const mb=new THREE.Mesh(new THREE.PlaneGeometry(.72,.05),new THREE.MeshBasicMaterial({color:'#120804'}));mb.position.set(0,.6,.79);g.add(mb);
+   const fire=glowSprite(0xff7a2a,.9,.15);fire.position.set(0,.72,.82);g.add(fire);R.fire=fire;const fl=new THREE.PointLight(0xff8a3a,0,6,1.5);fl.position.set(0,.8,1.2);g.add(fl);R.fireL=fl;
+   const gauge=new THREE.Group();gauge.position.set(.85,1.05,.62);g.add(gauge);cyl(.13,.13,.04,lam('#c9963a'),0,0,0,gauge,24).rotation.x=Math.PI/2;
+   const face=new THREE.Mesh(new THREE.CircleGeometry(.11,24),new THREE.MeshBasicMaterial({map:canvasTex(128,128,(x)=>{x.fillStyle='#f4ead0';x.beginPath();x.arc(64,64,62,0,TAU);x.fill();x.strokeStyle='#3a2618';for(let k=0;k<=10;k++){const a=Math.PI*.75+k/10*Math.PI*1.5;x.beginPath();x.moveTo(64+Math.cos(a)*44,64+Math.sin(a)*44);x.lineTo(64+Math.cos(a)*56,64+Math.sin(a)*56);x.stroke()}x.fillStyle='#3a2618';x.font='bold 18px sans-serif';x.textAlign='center';x.fillText('℃',64,96)})}));face.position.z=.025;gauge.add(face);
+   const needle=box(.008,.09,.004,lam('#b8332a'),0,.03,.03,gauge,true);R.needle=needle;needle.geometry.translate(0,0,0);
+   addItem(R,'kiln',wp(g,0,.9,.8),.75,.75,'puzzle')}
+  const pg=(id,deg,dist,build,my)=>{const g=station(sc,deg,dist);const y=build(g);addItem(R,id,wp(g,0,y,0),.55,my||.4,'clue');return g};
+  pg('s0',300,2.7,g=>{const m=new THREE.Mesh(new THREE.SphereGeometry(.45,24,12,0,TAU,0,Math.PI/2),tlam(potTex('clay')));m.scale.set(1.3,.55,1);g.add(m);
+    const fp=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.8),new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(256,192,(x)=>{x.fillStyle='rgba(60,30,15,.55)';[[60,60,-.3],[110,110,.2],[170,70,-.2],[205,130,.3]].forEach(([cx,cy,r])=>{x.save();x.translate(cx,cy);x.rotate(r);x.beginPath();x.ellipse(0,0,13,26,0,0,TAU);x.fill();for(let k=0;k<5;k++){x.beginPath();x.arc(-9+k*4.5,-30,3,0,TAU);x.fill()}x.restore()})})}));fp.rotation.x=-Math.PI/2;fp.position.set(0,.01,.65);g.add(fp);return .3});
+  pg('s1',245,2.7,g=>{box(.8,.45,.8,lam('#5b3a22'),0,.225,0,g);const h=cyl(.3,.3,.05,lam('#8e8f8c'),0,.5,0,g,32);const v=pot('clay','vase',1.3);v.position.y=.525;g.add(v);R.spin.push(h,v);return .8});
+  pg('s2',62,2.7,g=>{table(g,1.1,.7);const v=pot('bisque','jar',1.1);v.position.set(-.15,TOP,0);g.add(v);const kn=box(.18,.02,.03,lam('#c79b6a'),.3,TOP+.015,.1,g);kn.rotation.y=.5;const bl=box(.06,.008,.02,lam('#bbb'),.42,TOP+.015,.04,g,true);bl.rotation.y=.5;return TOP+.35});
+  pg('s3',108,2.9,g=>{const fm=lam('#4b2c18');[-.55,.55].forEach(x=>box(.05,1.5,.4,fm,x,.75,0,g));[.35,.8,1.25].forEach(y=>{box(1.15,.04,.4,tlam(T.wood),0,y,0,g);for(let k=0;k<4;k++){const p=pot('bisque',pick(['cup','bowl','vase']),.6);p.position.set(-.4+k*.27,y+.02,0);g.add(p)}});return 1.0},.75);
+  pg('s4',150,2.7,g=>{const b=new THREE.Mesh(new THREE.CylinderGeometry(.3,.26,.5,24,1,true),new THREE.MeshLambertMaterial({color:'#6d6a64',side:THREE.DoubleSide}));b.position.y=.25;g.add(b);const liq=cyl(.29,.29,.01,lam('#dfe6dd'),0,.44,0,g,24);
+    const p=pot('sanggam','bowl',.9);p.position.set(.05,.4,0);p.rotation.z=.6;g.add(p);const tb=new THREE.Group();tb.position.set(.7,0,0);g.add(tb);box(.5,.55,.45,lam('#5b3a22'),0,.275,0,tb);for(let k=0;k<2;k++){const c=pot('sanggam','cup',1.0);c.position.set(-.1+k*.2,.55,0);tb.add(c)}return .55});
+  pg('s5',30,2.0,g=>{for(let r=0;r<3;r++)for(let k=0;k<4-r;k++){const l=cyl(.07,.07,.7,lam('#6e4a2c'),-.21+k*.15+r*.075,.07+r*.13,0,g,10);l.rotation.x=Math.PI/2}
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(.5,.32),new THREE.MeshLambertMaterial({map:textCanvasTex(250,160,'#f1e5cb',[{t:'땔감',f:"bold 40px 'Gowun Batang',serif",y:60},{t:'재벌은 더 뜨겁게!',f:"30px 'Nanum Pen Script',cursive",y:115,c:'#8a4f1c'}],{border:'#8a5a34'})}));sign.position.set(0,.65,.05);g.add(sign);box(.03,.5,.03,lam('#4b2c18'),0,.35,0,g);return .5});
+  const BK='「빚어서 구워내다」 › <b>도자의 제작 과정</b> 여섯 장면을 순서대로 살펴보세요.';
+  R.on={};
+  STEPS.forEach((s,i)=>R.on['s'+i]=()=>infoCard(R,'s'+i,'작업 일지 한 장',s[0],`<div class="hand">${s[1]}</div>`,BK,true));
+  R.on.kiln=()=>{if(S.done['r2.kiln']){toast('가마에 불이 붙었어요! 문으로 가세요.');return}seeItem(R,'kiln');S.kilnOrder?tempCard(R):orderCard(R)};
+  R.need=['kiln'];
+  R.onSolved=()=>{R.fire.material.opacity=.9;R.fire.scale.setScalar(1.6);R.fireL.intensity=1.6};
+  return R}
+function orderCard(R){const pool=shuffle(STEPS.map((s,i)=>i));let seq=[];
+  const card=openCard(`<div class="sub">방 2 · 가마의 첫 번째 자물쇠</div><h2>도자기가 태어나는 순서</h2><p class="task">가마를 열려면 도자기 제작 과정 여섯 단계를 <b>처음부터 순서대로</b> 눌러야 해요. 방 곳곳에 흩어진 작업 일지를 먼저 읽어 보세요.</p>
+    <ol class="seqList" id="sl"></ol><div class="tiles" id="tl"></div>${book('「빚어서 구워내다」 › <b>도자의 제작 과정</b>')}<p id="fb" class="note" aria-live="polite"></p>`,[['처음부터',()=>{seq=[];draw()},'ghost'],['닫기',closeModal,'ghost']]);
+  function draw(){card.querySelector('#sl').innerHTML=STEPS.map((s,i)=>`<li class="${seq[i]!=null?'fill':''}">${seq[i]!=null?esc(STEPS[seq[i]][0]):''}</li>`).join('');
+    card.querySelector('#tl').innerHTML=pool.map(i=>`<button type="button" data-i="${i}" ${seq.includes(i)?'disabled':''}>${esc(STEPS[i][0])}</button>`).join('');
+    card.querySelectorAll('#tl button').forEach(b=>b.onclick=()=>{seq.push(+b.dataset.i);auChime(700+seq.length*60,.05);draw();if(seq.length===6)check()})}
+  function check(){if(seq.every((v,i)=>v===i)){auArp(440);S.kilnOrder=true;save();setTimeout(()=>tempCard(R),500)}
+    else{const ok=seq.findIndex((v,i)=>v!==i);card.querySelector('#fb').textContent=`철컥! 순서가 맞지 않아요. 앞에서부터 ${ok}단계까지는 맞았어요.`;const sl=card.querySelector('#sl');sl.classList.remove('shake');void sl.offsetWidth;sl.classList.add('shake');auBuzz();setTimeout(()=>{seq=[];draw()},900)}}
+  draw()}
+function tempCard(R){let v=600;
+  const card=openCard(`<div class="sub">방 2 · 가마의 두 번째 자물쇠</div><h2>가마 온도를 맞춰라</h2><p>순서가 맞았어요! 이제 마지막 단계인 <b>재벌구이</b>를 할 차례예요.</p><p class="task">재벌구이를 하려면 가마 온도를 <b>몇 ℃ 이상</b>으로 올려야 할까요?</p>
+    <div class="dialRow"><button type="button" data-s="-50" aria-label="50도 내리기">−50</button><input id="tv" inputmode="numeric" maxlength="4" value="${v}" aria-label="온도"><span>℃</span><button type="button" data-s="50" aria-label="50도 올리기">+50</button></div>
+    ${book('「도자의 제작 과정」의 <b>초벌구이</b>와 <b>재벌구이</b> 온도를 비교해 보세요.')}<p id="fb" class="note" aria-live="polite"></p>`,[['닫기',closeModal,'ghost'],['불 지피기',tryT]]);
+  const inp=card.querySelector('#tv');const set=n=>{v=clamp(n,0,1600);inp.value=v;R.needle.rotation.z=-(v/1600*Math.PI*1.5-Math.PI*.75)};set(v);
+  card.querySelectorAll('.dialRow button').forEach(b=>b.onclick=()=>{set((parseInt(inp.value,10)||0)+(+b.dataset.s));auChime(1000,.03)});
+  inp.oninput=()=>{inp.value=inp.value.replace(/\D/g,'').slice(0,4)};
+  function tryT(){const n=parseInt(inp.value,10)||0;set(n);if(n===1250){R.onSolved();solveItem(R,'kiln');closeModal()}
+    else{const fb=card.querySelector('#fb');fb.textContent=(n>=800&&n<=1000)?'그건 초벌구이 온도예요. 재벌구이는 더 높은 온도에서 구워요.':n>1250?'너무 뜨거워요! 교과서에 적힌 재벌구이 온도를 정확히 넣어 보세요.':'온도가 너무 낮아요. 불이 붙지 않아요.';
+      inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake');auBuzz()}}}
+
+/* ======================= ROOM 3 · 장식실 (장식 기법) ======================= */
+function buildRoom3(){const R=baseRoom({door:180,window:[270,1.2],wallTex:tex().wall,shelves:[[90,-1.6,1.0,1.6],[90,1.6,1.0,1.4]]});R.key='r3';const sc=R.scene;
+  /* tools table at 0° */
+  const g=station(sc,0,2.4);table(g,2.2,.8);const tools=[];
+  {const t=new THREE.Group();t.position.set(-.75,TOP,0);g.add(t);const h=cyl(.022,.022,.4,lam('#8a5a34'),0,.03,0,t,8);h.rotation.z=Math.PI/2;const br=new THREE.Mesh(new THREE.ConeGeometry(.07,.16,12),lam('#d8cbb0'));br.rotation.z=Math.PI/2;br.position.set(.27,.03,0);t.add(br);
+   const bucket=cyl(.11,.09,.16,lam('#7a6d5e'),-.1,.08,.2,t,16);cyl(.1,.1,.01,lam('#efe9d8'),-.1,.16,.2,t,16);tools.push(['t0',t])}
+  {const t=new THREE.Group();t.position.set(-.25,TOP,0);g.add(t);cyl(.03,.035,.16,lam('#8a5a34'),0,.12,0,t,10);const d=cyl(.07,.07,.04,lam('#6e4a2c'),0,.02,0,t,20);
+   const pr=new THREE.Mesh(new THREE.PlaneGeometry(.3,.2),new THREE.MeshBasicMaterial({map:potTex('inhwa')}));pr.rotation.x=-Math.PI/2;pr.position.set(0,.002,.2);t.add(pr);tools.push(['t1',t])}
+  {const t=new THREE.Group();t.position.set(.25,TOP,0);g.add(t);const k=box(.2,.025,.03,lam('#c79b6a'),0,.015,0,t,true);const bl=box(.07,.01,.02,lam('#c9c9c9'),.13,.015,0,t,true);
+   const w=new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),lam('#efe9d8'));w.scale.y=.6;w.position.set(-.05,.03,.18);t.add(w);const r=new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),lam('#a84a32'));r.scale.y=.6;r.position.set(.1,.03,.18);t.add(r);tools.push(['t2',t])}
+  {const t=new THREE.Group();t.position.set(.75,TOP,0);g.add(t);const bw=lathe([[0,0],[.06,0],[.1,.04],[.11,.07]],new THREE.MeshLambertMaterial({color:'#e8e1d0',side:THREE.DoubleSide}),20);t.add(bw);cyl(.095,.095,.005,lam('#4a2210'),0,.05,0,t,20);
+   const b=cyl(.008,.008,.3,lam('#2b1a0e'),.12,.08,0,t,6);b.rotation.z=.9;tools.push(['t3',t])}
+  tools.forEach(([id,t])=>addItem(R,id,wp(g,t.position.x,TOP+.1,0),.25,.32,'clue'));
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.3),new THREE.MeshLambertMaterial({map:textCanvasTex(480,120,'#f1e5cb',[{t:'장식 도구',f:"bold 48px 'Gowun Batang',serif",y:62}],{border:'#8a5a34'})}));sign.position.copy(wallPos(0,0,1.35,.02));faceIn(sign);sc.add(sign);
+  /* four decorated pots on pedestals */
+  const POTS=[['p0',58,'sanggam','maebyeong'],['p1',118,'cheolhwa','jar'],['p2',242,'gwiyal','jar'],['p3',302,'inhwa','vase']];
+  POTS.forEach(([id,deg,kind,prof])=>{const s=station(sc,deg,2.6);const h=pedestal(s,1.0);const p=pot(kind,prof,1.25);p.position.y=h;s.add(p);const sp=glowSprite(0xfff1d0,1.2,.18);sp.position.set(0,h+.4,0);s.add(sp);addItem(R,id,wp(s,0,h+.38,0),.5,.55,'puzzle')});
+  /* cobalt clue */
+  {const s=station(sc,208,3.6);box(.5,.9,.4,lam('#5b3a22'),0,.45,0,s);const j=pot('cheonghwa','jar',.6);j.position.y=.9;s.add(j);addItem(R,'cobalt',wp(s,0,1.1,0),.35,.35,'clue')}
+  const OPT=['상감 기법','철화 기법','귀얄 기법','인화 기법','청화 기법'];
+  const BK='「빚어서 구워내다」 › <b>도자의 장식 기법</b> 네 가지를 찾아 비교해 보세요.';
+  const Q={
+   p0:{kind:'sanggam',title:'푸른 병의 흰 학 무늬',body:'<p>푸른 바탕을 얇게 파낸 자리에 흰 흙과 붉은 흙이 메꾸어져 학과 구름 무늬가 되었어요.</p>',answer:'상감 기법',explain:'청자의 바탕에 문양을 파낸 후 <b>흰색이나 붉은색 흙을 메꾸어</b> 무늬를 만드는 기법이에요.'},
+   p1:{kind:'cheolhwa',title:'흰 항아리의 갈색 그림',body:'<p>흰 바탕 위에 진한 갈색으로 넝쿨과 잎을 붓으로 그렸어요. 쇠가 녹슨 듯한 색이에요.</p>',answer:'철화 기법',explain:'<b>철분이 함유된 철사 안료</b>로 도자기 표면에 그림을 그리는 기법이에요.'},
+   p2:{kind:'gwiyal',title:'거친 붓 자국이 지나간 항아리',body:'<p>어두운 바탕 위에 흰 흙이 넓고 거친 붓질로 휙휙 칠해져 있어요. 붓털 자국이 그대로 보여요.</p>',answer:'귀얄 기법',explain:'<b>돼지털이나 말총으로 만든 거친 붓</b>에 백토를 묻혀 그릇 표면에 칠하는 기법이에요.'},
+   p3:{kind:'inhwa',title:'작은 꽃이 빼곡한 병',body:'<p>똑같은 작은 꽃무늬가 줄을 맞춰 반복해서 빼곡하게 찍혀 있어요.</p>',answer:'인화 기법',explain:'도자기의 표면에 <b>문양 도장</b>을 활용하여 반복적으로 찍어 내는 기법이에요.'}};
+  R.on={
+   t0:()=>infoCard(R,'t0','장식 도구 1','거친 붓과 흰 흙','<p>돼지털이나 말총으로 만든 거친 붓이에요. 옆 통에는 하얀 흙물(백토)이 담겨 있어요.</p>',BK),
+   t1:()=>infoCard(R,'t1','장식 도구 2','무늬가 새겨진 나무 도장','<p>도장 바닥에 작은 꽃무늬가 새겨져 있어요. 옆 흙판에 같은 무늬가 줄지어 찍혀 있어요.</p>',BK),
+   t2:()=>infoCard(R,'t2','장식 도구 3','조각칼과 두 가지 흙','<p>날카로운 조각칼, 그리고 흰 흙과 붉은 흙 덩어리가 놓여 있어요.</p>',BK),
+   t3:()=>infoCard(R,'t3','장식 도구 4','검붉은 안료와 가는 붓','<p>그릇에 철분이 들어 있는 검붉은 안료(철사)가 담겨 있어요. 가는 붓으로 그림을 그릴 수 있어요.</p>',BK),
+   cobalt:()=>infoCard(R,'cobalt','덤 단서','푸른 그림의 비밀','<p>이 항아리는 <b>코발트가 함유된 회청</b>으로 무늬를 그려 청명한 푸른빛이 나요. 이런 장식을 <b>청화</b>라고 불러요. 이 방의 네 작품에는 쓰이지 않았지만, 다음 방에서 다시 만나게 될 거예요!</p>','「도자의 종류」 › <b>백자 청화 투각 구름 용무늬 연적</b> 설명')};
+  Object.keys(Q).forEach(id=>R.on[id]=()=>{if(S.done['r3.'+id]){toast('이미 맞힌 작품이에요: '+Q[id].answer);return}seeItem(R,id);mcCard(R,id,Object.assign({sub:'방 3 · 장식 기법',q:'이 작품은 어떤 장식 기법으로 꾸몄을까요?',options:OPT,book:BK,img:potURL(Q[id].kind)},Q[id]))});
+  R.need=['p0','p1','p2','p3'];
+  return R}
+
+/* ======================= ROOM 4 · 전시실 (도자의 종류 · 이름 짓기) ======================= */
+const NAMES={
+ maebyeong:{title:'고려 시대의 푸른 병',slots:['종류','장식','문양','형태'],parts:[['청자','종류'],['상감','장식'],['운학문','문양'],['매병','형태']],decoy:['백자','인화'],
+  body:'<dl class="fact"><dt>크기</dt><dd>높이 42.1cm · 고려 시대</dd><dt>재료</dt><dd>산화철이 포함된 흙과 유약, 1,250도 환원염으로 구워 아름다운 푸른색</dd><dt>장식</dt><dd>무늬를 파내고 흰 흙·붉은 흙을 메꿈</dd><dt>문양</dt><dd>구름과 학</dd><dt>형태</dt><dd>입이 좁고 어깨가 넓은, 유려한 곡선의 병 (매병)</dd></dl>',full:'청자 상감 운학문 매병'},
+ buncheong:{title:'15세기의 회색 항아리',slots:['종류','장식','문양','형태'],parts:[['분청사기','종류'],['상감','장식'],['운룡문','문양'],['항아리','형태']],decoy:['청자','귀얄'],
+  body:'<dl class="fact"><dt>크기</dt><dd>높이 49.7cm · 15세기</dd><dt>재료</dt><dd>청자를 만들던 흙으로 모양을 만들고 그 위에 백토로 분장하여 구움</dd><dt>장식</dt><dd>흙을 파내고 메꾼 무늬 (도장 무늬도 함께 사용)</dd><dt>문양</dt><dd>구름과 용</dd><dt>형태</dt><dd>항아리</dd></dl>',full:'분청사기 상감 운룡문 항아리'},
+ yeonjeok:{title:'조선 시대의 작은 물그릇',slots:['종류','장식','장식','문양','형태'],parts:[['백자','종류'],['청화','장식'],['투각','장식'],['구름 용무늬','문양'],['연적','형태']],decoy:['분청사기','매병'],
+  body:'<dl class="fact"><dt>크기</dt><dd>높이 11.5cm · 조선 시대</dd><dt>재료</dt><dd>백토로 형태를 만듦</dd><dt>장식</dt><dd>코발트가 함유된 회청으로 그린 푸른 문양 + 문양 모양대로 뚫어 낸 투각</dd><dt>문양</dt><dd>구름 용무늬</dd><dt>형태</dt><dd>먹을 갈 때 쓰는 물을 담는 그릇 (연적)</dd></dl>',full:'백자 청화 투각 구름 용무늬 연적'}};
+function buildRoom4(){const R=baseRoom({door:180,wallTex:tex().wall3,hemi:.7,lamp:.8});R.key='r4';const sc=R.scene;
+  /* naming board */
+  {const g=new THREE.Group();g.position.copy(wallPos(0,0,.55,.05));faceIn(g);sc.add(g);box(2.3,1.45,.06,lam('#4b2c18'),0,0,0,g);
+   const bd=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.25),new THREE.MeshLambertMaterial({map:canvasTex(840,500,(x,w,h)=>{x.fillStyle='#f1e5cb';x.fillRect(0,0,w,h);x.fillStyle='#3a2618';x.textAlign='center';x.font="bold 54px 'Gowun Batang',serif";x.fillText('내 이름을 맞혀 봐!',w/2,80);
+     ['종류','장식','문양','형태'].forEach((s,i)=>{const cx=110+i*207;x.fillStyle=['#86b39c','#e9b96e','#c77d55','#9a8fc0'][i];x.beginPath();x.roundRect?x.roundRect(cx-85,160,170,120,18):x.rect(cx-85,160,170,120);x.fill();x.fillStyle='#2a1806';x.font="bold 30px 'Gowun Dodum',sans-serif";x.fillText((i+1)+'. '+s,cx,232);if(i<3){x.font="bold 40px sans-serif";x.fillText('›',cx+103,235)}});
+     x.fillStyle='#6b4a2c';x.font="36px 'Nanum Pen Script',cursive";x.fillText('도자기 이름은 이 순서로 지어요',w/2,350);x.fillText('예) 청자 · 철화 · 당초문 · 편병 …',w/2,410)})}));bd.position.z=.035;g.add(bd);
+   addItem(R,'board',wp(g,0,0,.2),.7,.85,'clue')}
+  const D=[['maebyeong',60,'sanggam','maebyeong',1.3],['buncheong',120,'buncheong','jar',1.3],['yeonjeok',240,'cheonghwa',null,1],['moon',300,'white','moon',1.35]];
+  D.forEach(([id,deg,kind,prof,s])=>{const st=station(sc,deg,2.7);const h=pedestal(st,1.0,.7);let p;
+    if(prof)p=pot(kind,prof,s);else{p=new THREE.Group();const b=new THREE.Mesh(new THREE.SphereGeometry(.13,32,20),potMat(kind));b.scale.y=.85;b.position.y=.11;p.add(b);cyl(.03,.035,.06,potMat(kind),0,.24,0,p,12);const sp=cyl(.015,.02,.09,potMat(kind),.12,.15,0,p,8);sp.rotation.z=-.9;p.scale.setScalar(1.3)}
+    if(id==='moon')wobble(p,.025);p.position.y=h;st.add(p);
+    const spot=new THREE.SpotLight(0xfff1d6,.7,4,.5,.6);spot.position.set(0,2.6,.6);spot.target=p;st.add(spot);const gl=glowSprite(0xfff4dc,1.4,.15);gl.position.set(0,h+.4,0);st.add(gl);
+    addItem(R,id,wp(st,0,h+.35,0),.5,.6,'puzzle')});
+  R.on={board:()=>infoCard(R,'board','전시실 이름판','도자기 이름 짓는 순서',`<p>부르기 어려운 도자기 이름! 사실은 정해진 순서가 있어요.</p><ol style="line-height:1.9;font-size:16px"><li><b>종류</b> · 청자, 분청사기, 백자</li><li><b>장식</b> · 철화, 청화, 귀얄, 상감 등</li><li><b>문양</b> · 구름문, 당초문, 용문 등</li><li><b>형태</b> · 호, 매병, 편병, 장군 등</li></ol>`,'「도자의 종류」 › <b>부르기 어려운 도자기 이름! 어떤 순서로 짓는 걸까?</b>'),
+   moon:()=>{if(S.done['r4.moon']){toast('정답: 백자 · 1,300도 이상');return}seeItem(R,'moon');moonCard(R)}};
+  Object.keys(NAMES).forEach(id=>R.on[id]=()=>{if(S.done['r4.'+id]){toast('이미 맞힌 작품이에요: '+NAMES[id].full);return}seeItem(R,id);nameCard(R,id)});
+  R.need=['maebyeong','buncheong','yeonjeok','moon'];
+  return R}
+function nameCard(R,id){const N=NAMES[id];const tiles=shuffle(N.parts.map(p=>p[0]).concat(N.decoy));let seq=[];
+  const card=openCard(`<div class="sub">방 4 · 이름표가 사라졌어요</div><h2>${N.title}</h2>${N.body}<p class="task">설명을 읽고 도자기의 이름표를 <b>이름 짓는 순서대로</b> 완성하세요. 필요 없는 조각도 섞여 있어요.</p>
+   <div class="slots" id="sl"></div><div class="tiles" id="tl"></div>${book('「도자의 종류」 › 도자기 사진 설명과 <b>이름 짓는 순서</b>를 함께 보세요.')}<p id="fb" class="note" aria-live="polite"></p>`,[['지우기',()=>{seq=[];draw()},'ghost'],['닫기',closeModal,'ghost'],['이름표 붙이기',check]]);
+  function draw(){card.querySelector('#sl').innerHTML=N.slots.map((s,i)=>`<div class="slot ${seq[i]?'fill':''}"><small>${s}</small><b>${seq[i]?esc(seq[i]):'·'}</b></div>`).join('');
+    card.querySelector('#tl').innerHTML=tiles.map((t,i)=>`<button type="button" data-i="${i}" ${seq.includes(t)||seq.length>=N.slots.length?'disabled':''}>${esc(t)}</button>`).join('');
+    card.querySelectorAll('#tl button').forEach(b=>b.onclick=()=>{seq.push(tiles[+b.dataset.i]);auChime(800,.05);draw()})}
+  function check(){const fb=card.querySelector('#fb');if(seq.length<N.slots.length){fb.textContent='빈칸을 모두 채워 주세요.';return}
+    const cat=t=>{const p=N.parts.find(p=>p[0]===t);return p?p[1]:null};const ok=seq.every((t,i)=>cat(t)===N.slots[i]);
+    if(ok){auChime(880,.1);solveItem(R,id);openCard(`<div class="sub">방 4 · 이름표 완성</div><h2>${N.full}</h2>${N.body}<p>종류 → 장식 → 문양 → 형태 순서로 이름을 붙였어요.</p>`,[[R.isSolved()?'확인':'계속 조사하기',closeModal]])}
+    else{const wrongDecoy=seq.find(t=>!cat(t));fb.textContent=wrongDecoy?`'${wrongDecoy}'은(는) 이 도자기와 맞지 않아요. 설명의 재료와 장식을 다시 읽어 보세요.`:'조각은 맞지만 순서가 달라요. 이름판의 순서를 확인해 보세요.';const sl=card.querySelector('#sl');sl.classList.remove('shake');void sl.offsetWidth;sl.classList.add('shake');auBuzz()}}
+  draw()}
+function moonCard(R){let a=null,b=null;
+  const card=openCard(`<div class="sub">방 4 · 마지막 진열대</div><h2>눈처럼 흰 둥근 항아리</h2><dl class="fact"><dt>크기</dt><dd>높이 49cm · 18세기</dd><dt>모습</dt><dd>눈에 가까운 흰색, 불완전하지만 정감 가는 둥근 형태. 편안하고 소박한 아름다움</dd></dl>
+   <p class="task">이 항아리는 어떤 <b>종류</b>의 도자기이고, 몇 도에서 구웠을까요? 두 가지를 모두 고르세요.</p>
+   <p style="margin-bottom:0"><b>종류</b></p><div class="opts" id="ga">${['청자','분청사기','백자'].map(o=>`<button type="button">${o}</button>`).join('')}</div>
+   <p style="margin-bottom:0"><b>굽는 온도</b></p><div class="opts" id="gb">${['800~1,000도','1,250도','1,300도 이상'].map(o=>`<button type="button">${o}</button>`).join('')}</div>
+   ${book('「도자의 종류」 › <b>백자 달항아리</b> 설명')}<p id="fb" class="note" aria-live="polite"></p>`,[['닫기',closeModal,'ghost'],['확인',check]]);
+  const sel=(gid,setter)=>card.querySelectorAll('#'+gid+' button').forEach(btn=>btn.onclick=()=>{card.querySelectorAll('#'+gid+' button').forEach(x=>x.classList.remove('right'));btn.classList.add('right');setter(btn.textContent);auChime(800,.04)});
+  sel('ga',v=>a=v);sel('gb',v=>b=v);
+  function check(){const fb=card.querySelector('#fb');if(!a||!b){fb.textContent='두 가지를 모두 골라 주세요.';return}
+    if(a==='백자'&&b==='1,300도 이상'){solveItem(R,'moon');openCard(`<div class="sub">방 4 · 정답</div><h2>백자 달항아리</h2><p>백토로 몸통을 만들어, 청자보다 높은 <b>1,300도 이상</b>의 온도에서 구워 제작했어요. 보름달처럼 둥글고 넉넉한 모습에서 이름이 붙었어요.</p>`,[[R.isSolved()?'확인':'계속 조사하기',closeModal]])}
+    else{fb.textContent=a!=='백자'?'종류를 다시 생각해 보세요. 흰 흙(백토)으로 만든 도자기예요.':'온도를 다시 확인해 보세요. 청자(1,250도)보다 더 높아요.';auBuzz();card.classList.remove('shake');void card.offsetWidth;card.classList.add('shake')}}}
+
+/* ======================= ROOM 5 · 공예 수장고 (다양한 재료 · 현대 공예) ======================= */
+function buildRoom5(){const R=baseRoom({door:180,window:[90,1.4],wallTex:tex().wall2,shelves:[[270,1.5,1.1,1.6]]});R.key='r5';const sc=R.scene;
+  /* najeon box (0°) */
+  {const g=station(sc,0,2.5);table(g,1.1,.7,tlam(T.dark));const nt=canvasTex(256,256,(x,w,h)=>{x.fillStyle='#120c0a';x.fillRect(0,0,w,h);for(let i=0;i<26;i++){const cx=rand(10,w-10),cy=rand(10,h-10);const gr=x.createLinearGradient(cx-10,cy-10,cx+10,cy+10);gr.addColorStop(0,'#bfe8e0');gr.addColorStop(.5,'#f2d9f0');gr.addColorStop(1,'#a8c8f0');x.fillStyle=gr;for(let p=0;p<8;p++){const a=p/8*TAU;x.beginPath();x.ellipse(cx+Math.cos(a)*7,cy+Math.sin(a)*7,5,2.4,a,0,TAU);x.fill()}x.fillStyle='#c98a3a';x.beginPath();x.arc(cx,cy,2.5,0,TAU);x.fill()}
+     x.strokeStyle='#cfc2a0';x.lineWidth=1.5;for(let k=0;k<6;k++){x.beginPath();x.moveTo(0,rand(0,h));x.bezierCurveTo(w*.3,rand(0,h),w*.6,rand(0,h),w,rand(0,h));x.stroke()}});
+   const bx=box(.36,.16,.26,new THREE.MeshLambertMaterial({map:nt}),0,TOP+.08,0,g);const lid=box(.38,.04,.28,new THREE.MeshLambertMaterial({map:nt}),0,TOP+.18,0,g);
+   const sh=glowSprite(0xd8f4ff,.6,.35);sh.position.set(0,TOP+.25,0);g.add(sh);R.pulse.push(sh);
+   const shell=new THREE.Mesh(new THREE.SphereGeometry(.09,16,8,0,TAU,0,Math.PI/2),new THREE.MeshLambertMaterial({color:'#cfe8e4',side:THREE.DoubleSide}));shell.scale.set(1.3,.3,1);shell.position.set(.38,TOP+.01,.1);g.add(shell);
+   addItem(R,'najeon',wp(g,0,TOP+.15,0),.45,.45,'puzzle')}
+  /* jogakbo on a stand (52°) */
+  {const g=station(sc,52,3.0);[-.55,.55].forEach(x=>box(.05,1.9,.05,lam('#4b2c18'),x,.95,0,g));box(1.25,.05,.05,lam('#4b2c18'),0,1.88,0,g);
+   const jt=canvasTex(256,256,(x,w,h)=>{const cols=['#d9534f','#f0c75e','#5b9bd5','#8fc79a','#e8e2d0','#b07cc6','#f29e6d','#5aa19a','#efd9b4'];const cut=(x0,y0,ww,hh,d)=>{if(d>3||ww<40||hh<40){x.fillStyle=pick(cols);x.fillRect(x0,y0,ww,hh);x.strokeStyle='#6b5a44';x.lineWidth=2;x.strokeRect(x0,y0,ww,hh);return}if(Math.random()<.5){const s=rand(.3,.7)*ww;cut(x0,y0,s,hh,d+1);cut(x0+s,y0,ww-s,hh,d+1)}else{const s=rand(.3,.7)*hh;cut(x0,y0,ww,s,d+1);cut(x0,y0+s,ww,hh-s,d+1)}};cut(0,0,w,h,0)});
+   const cl=new THREE.Mesh(new THREE.PlaneGeometry(1.0,1.0,8,8),new THREE.MeshLambertMaterial({map:jt,side:THREE.DoubleSide,transparent:true,opacity:.95}));cl.position.set(0,1.32,.02);g.add(cl);R.cloth=cl;
+   addItem(R,'jogakbo',wp(g,0,1.3,.05),.55,.65,'puzzle')}
+  /* dye bowls (100°) */
+  {const g=station(sc,100,2.6);table(g,1.4,.7);['#b8323a','#e8b92e','#6f9a3e','#2c4f9a','#7d7a78'].forEach((c,i)=>{const b=lathe([[0,0],[.05,0],[.09,.04],[.1,.07]],new THREE.MeshLambertMaterial({color:'#efe9dc',side:THREE.DoubleSide}),20);b.position.set(-.48+i*.24,TOP,0);g.add(b);cyl(.088,.088,.004,lam(c),-.48+i*.24,TOP+.055,0,g,20)});
+   const herb=[['#7a3a22'],['#d9a033'],['#5b7a3a'],['#3b5a8a'],['#6b5a44']];herb.forEach(([c],i)=>{const h=new THREE.Mesh(new THREE.SphereGeometry(.035,8,6),lam(c));h.position.set(-.48+i*.24,TOP+.02,.2);g.add(h)});
+   const cloth=box(.35,.01,.2,lam('#2c4f9a'),.45,TOP+.005,-.22,g,true);
+   addItem(R,'dye',wp(g,0,TOP+.1,0),.6,.45,'puzzle')}
+  /* gyeongsang (145°) */
+  {const g=station(sc,145,2.5);const dm=tlam(T.wood,'#c08a5a');box(.9,.04,.36,dm,0,.4,0,g);[-.4,.4].forEach(x=>{box(.04,.38,.3,dm,x,.2,0,g);const end=box(.1,.04,.36,dm,x*1.1,.43,0,g);end.rotation.z=x>0?.5:-.5});
+   const sc2=cyl(.03,.03,.32,lam('#f1e5cb'),0,.45,0,g,10);sc2.rotation.z=Math.PI/2;
+   addItem(R,'gyeongsang',wp(g,0,.5,0),.5,.4,'puzzle')}
+  /* jiseung moon jar (218°) */
+  {const g=station(sc,218,2.6);const h=pedestal(g,.9,.6);const p=pot('jiseung','moon',1.15);p.position.y=h;g.add(p);addItem(R,'jiseung',wp(g,0,h+.35,0),.5,.55,'puzzle')}
+  /* 3D printed piece (268°) */
+  {const g=station(sc,268,2.6);table(g,1.0,.7,lam('#d8d4cc'));const pr=new THREE.Group();pr.position.set(-.2,TOP,0);g.add(pr);const fm=lam('#3a3a3a');[[-.18,-.15],[.18,-.15],[-.18,.15],[.18,.15]].forEach(([a,b])=>box(.025,.42,.025,fm,a,.21,b,pr,true));box(.4,.025,.34,fm,0,.42,0,pr,true);box(.36,.015,.3,lam('#555'),0,.02,0,pr,true);
+   const fig=new THREE.Group();fig.position.set(.28,TOP,.05);g.add(fig);const bodyM=lam('#f2a7c3');const b=new THREE.Mesh(new THREE.SphereGeometry(.07,16,12),bodyM);b.position.y=.07;b.scale.y=1.2;fig.add(b);
+   for(let k=0;k<6;k++){const c=new THREE.Mesh(new THREE.ConeGeometry(.012,.04,6),bodyM);const a=k/6*TAU;c.position.set(Math.cos(a)*.05,.14,Math.sin(a)*.05);fig.add(c)}
+   const spool=cyl(.06,.06,.05,lam('#7ac36a'),-.2,TOP+.5,-.05,g,16);spool.rotation.x=Math.PI/2;
+   addItem(R,'print3d',wp(g,.1,TOP+.15,0),.5,.4,'puzzle')}
+  /* modern metal cabinet clue (315°) */
+  {const g=station(sc,318,3.4);const mt=lam('#b9bcc0');[-.4,.4].forEach(x=>box(.04,1.4,.04,mt,x,.7,-.2,g));[-.4,.4].forEach(x=>box(.04,1.4,.04,mt,x,.7,.2,g));[.3,.8,1.3].forEach(y=>box(.84,.03,.44,lam('#9aa0a6'),0,y,0,g));
+   const p1=pot('white','bottle',.8);p1.position.set(-.15,.315,0);g.add(p1);const p2=pot('bisque','cup',1);p2.position.set(.18,.815,0);g.add(p2);addItem(R,'modern',wp(g,0,.9,0),.5,.65,'clue')}
+  const B1='「물들이고 덧붙이고 꼬다」',B2='「끊고 자르고 두드리다」',B3='「나전의 빛과 옻의 광택이 어우러지다」',B4='「새로워진 현대 공예」';
+  const Q={
+   najeon:{title:'영롱하게 빛나는 작은 함',body:'<p>검은 옻칠 위에 조개껍데기 조각이 국화꽃과 넝쿨무늬로 빛나요. 손바닥만 한 크기의 고려 시대 함이에요.</p>',q:'전복 껍질을 <b>종잇장같이 얇게 갈아서</b> 사용하는 나전 칠기의 방법은 무엇일까요?',options:['박패법','복채법','끊음질','상감법'],answer:'박패법',explain:'나전 칠기는 얇게 간 조개껍데기(나전, 자개)를 오려 옻칠한 목제품 표면에 감입하여 꾸며요. 전복 껍질을 얇게 가는 <b>박패법</b>, 대모 뒷면에 붉은 채색을 하는 <b>복채법</b>, 금속선을 쓰는 방법 등이 있어요. (나전국화넝쿨무늬자합)',book:B3+' › 나전 칠기 설명'},
+   jogakbo:{title:'알록달록 이어 붙인 보자기',body:'<p>크기와 색이 다른 천 조각들을 이어 붙여 만든 큰 보자기예요.</p>',q:'버려진 자투리 천을 모아 이어 만든 이 보자기는 무엇이고, 어디에 쓰였을까요?',wide:true,options:['조각보 · 운반, 보관, 포장','지장함 · 의류와 패물 보관','노리개 · 저고리 고름 장식','향주머니 · 몸에 차고 다님'],answer:'조각보 · 운반, 보관, 포장',explain:'<b>명주 조각보</b>(19세기)는 버려진 자투리 천을 모아 이어서 만들었고, 운반·보관·포장 등 다양한 용도로 사용되었어요.',book:B1+' › 명주 조각보'},
+   dye:{title:'다섯 그릇의 천연 염료',body:'<p>식물로 만든 염료 다섯 그릇이 있어요. 옆의 천은 푸른색으로 물들어 있어요.</p>',q:'천을 <b>청색</b>으로 물들일 때 사용한 식물은 무엇일까요?',options:['쪽','소목','치자','쑥','오배자'],answer:'쪽',explain:'천연 식물 재료로 아름다운 색을 낼 수 있어요. 소목(적색), 치자(황색), 쑥(녹색), <b>쪽(청색)</b>, 오배자(회색).',book:B1+' › 천연 염료 사진'},
+   gyeongsang:{title:'양 끝이 들린 낮은 책상',body:'<p>앉아서 쓰도록 높이가 낮고 작은 조선 말의 책상이에요. 요즘 책상과 무엇이 다를까요?</p>',q:'이 책상(경상)의 양 끝이 살짝 들려 올라간 까닭은 무엇일까요?',wide:true,options:['두루마리 책이 굴러떨어지는 것을 막으려고','책상을 더 가볍게 만들려고','서랍을 넣을 자리를 만들려고','장식 무늬를 새기기 위해서'],answer:'두루마리 책이 굴러떨어지는 것을 막으려고',explain:'<b>경상</b>은 앉아서 사용할 수 있도록 높이가 낮고, 두루마리 책이 굴러떨어지는 것을 막기 위해 양 끝이 살짝 들려 올라간 형태로 만들었어요. 나무로 만드는 목공예는 다루기 쉽고 따뜻한 느낌을 줘요.',book:B2+' › 경상'},
+   jiseung:{title:'종이로 엮은 달항아리',body:'<p>도자기처럼 보이지만 사실은 종이로 만든 작품이에요. 가까이 보니 가는 끈이 촘촘히 엮여 있어요.</p>',q:'종이를 일정한 크기로 잘라 <b>꼬아서 끈을 만들고 엮어</b> 만드는 한지 공예를 무엇이라 할까요?',options:['지승 공예','배접','조각보','나전 칠기'],answer:'지승 공예',explain:'김선애의 「달항아리-품달Ⅰ」은 종이를 꼬아 끈을 만들어 엮은 <b>지승 공예품</b>이에요. 한지는 섬유가 길고 강한 <b>닥나무</b>로 만들어 가볍고 견고해요.',book:B1+' › 달항아리-품달Ⅰ'},
+   print3d:{title:'3D 프린터로 만든 작은 친구',body:'<p>3D 프린터 옆에 분홍색의 작은 작품이 놓여 있어요. 영국 작가 트라에의 「안녕, 예쁜이!」예요.</p>',q:'이 작품은 어떤 재료와 기술로 만들었을까요?',wide:true,options:['Eco PLA + 3D 프린팅','알루미늄 + 철','한지 + 닥나무 섬유','자개 + 옻칠'],answer:'Eco PLA + 3D 프린팅',explain:'100% 재생이 가능한 천연 자원으로 만든 생분해성 소재 <b>Eco PLA</b>와 <b>3D 프린팅</b> 기술로 완성한 디지털 공예품이에요.',book:B4+' › 트라에, 「안녕, 예쁜이!」'}};
+  R.on={modern:()=>infoCard(R,'modern','수장고 메모','새로워진 현대 공예','<div class="hand">현대의 공예는 알루미늄, 철 같은 다양한 재료를 쓰거나 전통문화를 현대적으로 재해석하기도 해. 3D 프린터 같은 새로운 기술도 쓰지!</div><p style="color:#6b4a2c">이 금속 장은 김현희의 「오래된 미래 2」처럼, 전통 재료인 나무 대신 알루미늄과 철로 조선 시대 가구를 다시 만든 거예요.</p>',B4,true)};
+  Object.keys(Q).forEach(id=>R.on[id]=()=>{if(S.done['r5.'+id]){toast('이미 맞힌 공예품이에요.');return}seeItem(R,id);mcCard(R,id,Object.assign({sub:'방 5 · 공예 수장고'},Q[id]))});
+  R.need=['najeon','jogakbo','dye','gyeongsang','jiseung','print3d'];
+  R.update2=t=>{if(R.cloth){const p=R.cloth.geometry.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i);p.setZ(i,Math.sin(t*1.3+x*3+y*2)*.03*(.5-y))}p.needsUpdate=true}};
+  return R}
+
+/* ---------------- room definitions ---------------- */
+const ROOMDEF=[
+ {no:'방 1 / 5',title:'흙을 빚는 방',build:buildRoom1,book:'「빚어서 구워내다」 › 도자의 성형 방법',
+  intro:'<p>흙냄새 가득한 작업실이에요. 물레와 작업대 위에 만들다 만 작품들이 놓여 있어요.</p><p class="task"><b>임무</b> · 작품 네 점은 모두 다른 방법으로 빚었어요. 각 작품을 눌러 <b>어떤 성형 방법</b>으로 만들었는지 맞히세요.</p>',
+  solvedMsg:'핀칭, 코일링, 판 성형, 물레 성형! 만드는 방법에 따라 도자기의 형태와 느낌이 달라져요. 이제 빚은 도자기를 구우러 가마실로 가요.',
+  hints:['교과서 11단원의 「도자의 성형 방법」 사진 네 장을 펼쳐 놓고 작품과 비교해 보세요.','좌우 대칭 + 빠른 속도 → 물레 성형 / 각진 형태 → 판 성형','손가락으로 꼬집듯 눌러 만듦 → 핀칭 / 가늘고 긴 흙 띠를 아래부터 쌓음 → 코일링']},
+ {no:'방 2 / 5',title:'불을 다루는 가마실',build:buildRoom2,book:'「빚어서 구워내다」 › 도자의 제작 과정',
+  intro:'<p>벽돌 가마가 차갑게 식어 있어요. 가마에 불을 지피지 못하면 이 방을 나갈 수 없어요.</p><p class="task"><b>임무</b> · 방 곳곳의 <b>작업 일지 6장</b>을 읽고, 정면의 가마를 눌러 <b>제작 과정의 순서</b>와 <b>재벌구이 온도</b>를 맞히세요.</p>',
+  solvedMsg:'꼬막 밀기 → 성형하기 → 무늬 새기기 → 초벌구이 → 유약 바르기 → 재벌구이. 정성과 시간을 담아 도자기가 태어나요. 다음은 무늬를 입히는 장식실이에요.',
+  hints:['방을 한 바퀴 둘러보며 초록 동그라미가 떠 있는 작업 일지 6장을 모두 읽어 보세요.','흙 준비 → 모양 만들기 → 무늬 → 첫 번째 굽기 → 유약 → 두 번째 굽기','초벌구이는 800~1,000℃, 재벌구이는 1,250℃ 이상이에요. 온도에는 1250을 넣어요.']},
+ {no:'방 3 / 5',title:'무늬를 입히는 장식실',build:buildRoom3,book:'「빚어서 구워내다」 › 도자의 장식 기법',
+  intro:'<p>진열대 위에 각기 다른 무늬의 도자기 네 점이 놓여 있어요. 정면 탁자에는 장식 도구가 있어요.</p><p class="task"><b>임무</b> · 도자기를 하나씩 눌러 <b>어떤 장식 기법</b>으로 꾸몄는지 맞히세요. 도구를 먼저 살펴보면 도움이 돼요.</p>',
+  solvedMsg:'철화, 귀얄, 상감, 인화! 도자기 표면을 장식하는 다양한 방법을 익혔어요. 다음은 유명한 도자기들이 기다리는 전시실이에요.',
+  hints:['정면 탁자의 장식 도구 네 가지를 눌러 보고, 교과서 「도자의 장식 기법」 사진과 비교해 보세요.','거친 붓 자국 → 귀얄 / 똑같은 무늬가 반복해서 찍힘 → 인화','파낸 자리에 흰 흙·붉은 흙을 메꿈 → 상감 / 철분 안료로 그린 갈색 그림 → 철화']},
+ {no:'방 4 / 5',title:'이름을 짓는 전시실',build:buildRoom4,book:'「도자의 종류」 · 내 이름을 맞혀 봐!',
+  intro:'<p>조명 아래 귀한 도자기 네 점이 전시되어 있는데, 이름표가 모두 사라졌어요!</p><p class="task"><b>임무</b> · 정면의 이름판에서 <b>이름 짓는 순서</b>를 확인하고, 도자기마다 이름표를 다시 만들어 주세요.</p>',
+  solvedMsg:'청자 상감 운학문 매병, 분청사기 상감 운룡문 항아리, 백자 청화 투각 구름 용무늬 연적, 그리고 백자 달항아리. 도자기는 그 시대의 기술과 미의식을 보여 줘요.',
+  hints:['정면의 이름판: 종류 → 장식 → 문양 → 형태 순서로 이름을 지어요.','푸른빛 + 1,250도 환원염 → 청자 / 청자 흙 위에 백토로 분장 → 분청사기 / 백토로 만듦 → 백자','연적은 장식이 두 개(청화, 투각)예요. 달항아리는 백자이고 1,300도 이상에서 구웠어요.']},
+ {no:'방 5 / 5',title:'공예 수장고',build:buildRoom5,book:'「물들이고 덧붙이고 꼬다」 · 「끊고 자르고 두드리다」 · 「새로워진 현대 공예」',
+  intro:'<p>공방 안쪽의 수장고예요. 도자기 말고도 천, 종이, 나무, 자개, 금속, 3D 프린팅으로 만든 공예품이 가득해요.</p><p class="task"><b>임무</b> · 공예품 여섯 점의 문제를 모두 풀면 공방의 마지막 문이 열려요. 교과서의 다른 쪽도 넘겨 보세요!</p>',
+  solvedMsg:'섬유, 한지, 나무, 나전 칠기, 그리고 현대 공예까지! 공예는 일상생활 곳곳에서 쉽게 발견할 수 있는 미술이에요.',
+  hints:['이 방의 문제는 교과서 11단원의 뒷부분(섬유·한지, 금속·유리·목공, 나전 칠기, 현대 공예)에 있어요.','조각보는 자투리 천을 이어 만든 보자기, 지승은 종이를 꼬아 엮는 공예예요. 쪽은 청색을 내요.','나전 칠기에서 전복 껍질을 얇게 가는 방법은 박패법, 3D 프린팅 작품의 재료는 Eco PLA예요.']}];
+const built=[];let cur=null;
+function getRoom(i){if(!built[i]){const R=ROOMDEF[i].build();R.idx=i;R.isSolved=()=>R.need.every(id=>S.done[R.key+'.'+id]);Object.keys(R.items).forEach(id=>markItem(R,id));if(R.isSolved()){R._cel=true;R.onSolved&&R.onSolved()}built[i]=R}return built[i]}
+const look={yaw:0,pitch:0,vy:0,vp:0,drag:false};
+function enterRoom(i){S.room=i;S.visited[i]=true;cur=getRoom(i);camera.position.set(...cur.camPos);look.yaw=cur.yaw0;look.pitch=cur.pitch0;look.vy=look.vp=0;camera.fov=68;updFov();renderHUD();save()}
+function fade(mid){const f=$('fade');f.classList.add('on');setTimeout(()=>{mid();requestAnimationFrame(()=>setTimeout(()=>f.classList.remove('on'),60))},620)}
+function introCard(i){openCard(`<div class="sub">${ROOMDEF[i].no}</div><h2>${ROOMDEF[i].title}</h2>${ROOMDEF[i].intro}${book('이 방의 단서: '+ROOMDEF[i].book)}<p class="note">화면을 끌어 360도로 둘러보세요. <span style="color:var(--gold)">?</span> 표시는 문제, <span style="color:var(--celadon)">◎</span> 표시는 단서예요.</p>`,[['둘러보기 시작',closeModal]])}
+function goRoom(i){if(modalOpen)closeModal();fade(()=>{enterRoom(i);if(!S.intro[i]){S.intro[i]=true;save();setTimeout(()=>introCard(i),700)}})}
+
+/* ---------------- HUD ---------------- */
+let toastT=0;
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('off');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.add('off'),2800)}
+function renderGuide(){if(!cur||!S.started||S.escaped)return;const R=cur;const n=R.need.filter(id=>S.done[R.key+'.'+id]).length;
+  let g;if(R.isSolved())g=S.room===NROOM-1?'모든 문제를 풀었어요! 등 뒤의 <b>출구</b> 문을 눌러 공방을 탈출하세요.':'자물쇠가 풀렸어요! 등 뒤의 <b>출구</b> 문이나 아래 버튼으로 다음 방에 가요.';
+  else if(R.key==='r2')g=S.kilnOrder?'순서는 맞혔어요! 가마를 다시 눌러 <b>재벌구이 온도</b>를 맞추세요.':`작업 일지 ${STEPS.filter((s,i)=>S.seen['r2.s'+i]).length} / 6장 읽음 · 다 읽었으면 정면의 <b>가마</b>를 눌러요.`;
+  else g=`해결 ${n} / ${R.need.length} · <span style="color:var(--gold)">?</span> 표시가 떠 있는 물건을 눌러 문제를 풀어요.`;
+  $('guide').innerHTML=g}
+function renderHUD(){const playing=S.started&&!S.escaped;['hudTL','hudTR','hudB'].forEach(id=>$(id).hidden=!playing);if(!playing)return;
+  $('roomNo').textContent=ROOMDEF[S.room].no;$('roomName').textContent=ROOMDEF[S.room].title;
+  $('tabs').innerHTML=ROOMDEF.map((r,i)=>{const solved=built[i]?built[i].isSolved():false;return `<button class="tab${solved?' done':''}" type="button" data-r="${i}" aria-current="${i===S.room}" ${S.visited[i]||ADMIN?'':'disabled'} aria-label="${r.title}">${i+1}</button>`}).join('');
+  $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{const r=+b.dataset.r;if(r!==S.room)goRoom(r)});
+  $('hintBtn').textContent=S.hints?`힌트 · ${S.hints}`:'힌트';
+  const nx=$('nextBtn');const sol=cur&&(cur.isSolved()||ADMIN);nx.hidden=!sol;if(sol)nx.textContent=S.room===NROOM-1?'공방 탈출하기':(S.visited[S.room+1]?`방 ${S.room+2}로 가기`:'다음 방으로');
+  if(cur&&cur.door){const op=cur.isSolved();cur.door.glow.material.opacity=op?.55:0;cur.door.lock.visible=!op}
+  renderGuide()}
+$('nextBtn').onclick=()=>{S.room===NROOM-1?escapeNow():goRoom(S.room+1)};
+/* ---------------- admin mode (code is stored only as a salted hash) ---------------- */
+const ADMIN_H='8dfffd6d';
+function adminHash(v){let x=0x811c9dc5>>>0;const t='pottery-kiln#'+v;for(let r=0;r<5000;r++){for(let i=0;i<t.length;i++){x^=t.charCodeAt(i)+r;x=Math.imul(x,16777619)>>>0}}return x.toString(16)}
+let adminFails=0,adminLockUntil=0;
+function adminLogin(){if(ADMIN){adminPanel();return}
+  const card=openCard(`<div class="sub">관리자 모드</div><h2>비밀번호를 입력하세요</h2><p>선생님용 화면이에요. 모든 방을 자유롭게 오가며 문제와 정답을 확인할 수 있어요.</p>
+   <div class="pw"><input id="pw" type="password" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="관리자 비밀번호"></div><p id="fb" class="note" aria-live="polite" style="text-align:center"></p>`,[['취소',closeModal,'ghost'],['들어가기',tryPw]]);
+  const inp=card.querySelector('#pw');inp.focus();inp.oninput=()=>{inp.value=inp.value.replace(/\D/g,'').slice(0,4)};inp.onkeydown=e=>{if(e.key==='Enter')tryPw()};
+  function tryPw(){const fb=card.querySelector('#fb');const now=Date.now();if(now<adminLockUntil){fb.textContent=`잠시 후 다시 시도하세요 (${Math.ceil((adminLockUntil-now)/1000)}초).`;return}
+    if(adminHash(inp.value)===ADMIN_H){enterAdmin()}
+    else{adminFails++;if(adminFails>=5){adminLockUntil=now+30000;adminFails=0}inp.value='';fb.textContent='비밀번호가 맞지 않아요.';inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake');auBuzz()}}}
+function enterAdmin(){ADMIN=true;auInit();const keep=S;S=freshState();S.team='관리자';S.started=true;S.intro=S.intro.map(()=>true);S.visited=S.visited.map(()=>true);S.hints=0;
+  if(keep&&keep.started){/* students' saved progress stays untouched in storage */}
+  built.forEach(R=>{if(R)R._cel=true});built.length=0;
+  const st=$('start');st.hidden=true;$('adminStart').hidden=true;$('adminBtn').classList.add('on');$('timer').textContent='관리자';
+  enterRoom(S.room||0);adminPanel()}
+function adminPanel(){openCard(`<div class="sub">관리자 모드</div><h2>방 바로가기</h2><p class="note">관리자 모드에서는 모든 문이 열려 있고, 진행 기록과 타이머가 저장되지 않아요. 학생들의 진행 상황에도 영향을 주지 않아요.</p>
+   <div class="roomGrid">${ROOMDEF.map((r,i)=>`<button type="button" data-r="${i}" aria-current="${i===S.room}"><b>${i+1}</b>${esc(r.title)}<br><small class="note">${esc(r.book)}</small></button>`).join('')}</div>`,
+   [['관리자 모드 끝내기',()=>{location.reload()},'ghost'],['정답표 보기',answerSheet],['닫기',closeModal]]);
+  $('card').querySelectorAll('.roomGrid button').forEach(b=>b.onclick=()=>{const r=+b.dataset.r;closeModal();if(r!==S.room)goRoom(r)})}
+function answerSheet(){const row=(q,a)=>`<tr><td>${q}</td><td><b>${a}</b></td></tr>`;
+  const html=`<div class="ans">
+   <h3>1. 흙을 빚는 방 · 성형 방법</h3><table>${row('물레 위 대칭 그릇','물레 성형')}${row('손가락 자국 컵','핀칭 기법')}${row('층층이 쌓은 항아리','코일링 기법')}${row('네모 상자','판 성형')}</table>
+   <h3>2. 가마실 · 제작 과정</h3><table>${row('순서',STEPS.map(x=>x[0]).join(' → '))}${row('재벌구이 온도','1250 ℃')}</table>
+   <h3>3. 장식실 · 장식 기법</h3><table>${row('푸른 병의 흰 학 무늬','상감 기법')}${row('흰 항아리의 갈색 그림','철화 기법')}${row('거친 붓 자국 항아리','귀얄 기법')}${row('작은 꽃이 빼곡한 병','인화 기법')}</table>
+   <h3>4. 전시실 · 도자기 이름</h3><table>${Object.values(NAMES).map(n=>row(n.title,n.full)).join('')}${row('흰 둥근 항아리','백자 · 1,300도 이상 (백자 달항아리)')}</table>
+   <h3>5. 공예 수장고</h3><table>${row('나전 자합','박패법')}${row('보자기','조각보 · 운반, 보관, 포장')}${row('청색 염료','쪽')}${row('경상의 들린 양 끝','두루마리 책이 굴러떨어지는 것을 막으려고')}${row('종이 달항아리','지승 공예')}${row('3D 프린팅 작품','Eco PLA + 3D 프린팅')}</table></div>`;
+  openCard(`<div class="sub">관리자 모드</div><h2>정답표</h2>${html}`,[['방 바로가기',adminPanel,'ghost'],['닫기',closeModal]])}
+$('adminBtn').onclick=()=>{if(!modalOpen)adminLogin()};
+$('adminStart').onclick=()=>{if(!modalOpen)adminLogin()};
+$('hintBtn').onclick=()=>{if(!modalOpen)hintCard()};
+$('soundBtn').onclick=()=>{AU.on=!AU.on;auInit();if(AU.master)AU.master.gain.setTargetAtTime(AU.on?.9:0,AU.ctx.currentTime,.2);$('soundBtn').textContent=AU.on?'소리 켬':'소리 끔';$('soundBtn').setAttribute('aria-pressed',String(AU.on))};
+const fmt=s=>{s=Math.floor(s);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+function hintCard(){const r=S.room,H=ROOMDEF[r].hints,shown=S.hintIdx[r];
+  const list=H.slice(0,shown).map((h,i)=>`<div><b>힌트 ${i+1}</b> · ${esc(h)}</div>`).join('')||'<div>아직 본 힌트가 없어요. 먼저 교과서를 펼쳐 찾아보세요!</div>';
+  const btns=[['닫기',closeModal,'ghost']];if(shown<H.length)btns.push([shown?'다음 힌트 보기':'힌트 보기',()=>{S.hintIdx[r]++;S.hints++;save();renderHUD();hintCard()}]);
+  openCard(`<div class="sub">${ROOMDEF[r].no} · 힌트</div><h2>${ROOMDEF[r].title}</h2>${book(ROOMDEF[r].book)}<div class="hints">${list}</div><p class="note">힌트를 볼 때마다 기록에 남아요. 지금까지 ${S.hints}번.</p>`,btns)}
+
+/* ---------------- ending ---------------- */
+function escapeNow(){if(S.escaped)return;S.escaped=true;save();auArp(523.25);setTimeout(()=>auArp(659.25),600);
+  fade(()=>{renderHUD();look.pitch=.05;camera.fov=74;updFov();
+    setTimeout(()=>openCard(`<div class="sub">탈출 성공</div><h2>${esc(S.team||'우리')} 모둠, 도자기 공방을 빠져나왔어요!</h2>
+     <dl class="fact"><dt>걸린 시간</dt><dd>${fmt(S.elapsed)}</dd><dt>힌트</dt><dd>${S.hints}번</dd></dl>
+     <p><b>오늘 교과서에서 만난 것들</b></p><ol class="learned">${ROOMDEF.map((r,i)=>`<li><b>${i+1}</b><span><strong>${esc(r.title)}</strong> · ${esc(r.book)}</span></li>`).join('')}</ol>
+     <p class="task">교과서 11단원에서 <b>가장 갖고 싶은 공예품</b> 하나를 골라, 어떤 재료와 기법으로 만들었는지 활동지에 적어 보세요.</p>
+     <p class="note">이 화면을 선생님께 보여 주세요.</p>`,[['처음부터 다시',()=>{try{localStorage.removeItem(KEY)}catch(e){}location.reload()},'ghost'],['공방 감상하기',()=>{$('modal').hidden=true;modalOpen=false}]]),900)})}
+
+/* ---------------- input ---------------- */
+const cv=$('gl');const ptrs=new Map();let down=null,pinch=null,lastMove=0;const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
+const pd=()=>{const a=[...ptrs.values()];return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)};
+cv.addEventListener('pointerdown',e=>{if(modalOpen)return;try{cv.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===1){down={x:e.clientX,y:e.clientY,t:performance.now(),moved:0};look.drag=true;look.vy=look.vp=0;cv.classList.add('drag')}else if(ptrs.size===2){pinch={d:pd(),fov:camera.fov};down=null}});
+cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);
+  if(!p){hover(e);return}const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+  if(ptrs.size===1){const k=camera.fov*D2R/innerHeight*1.1;look.yaw+=dx*k;look.pitch+=dy*k;const now=performance.now(),dtm=Math.max(8,now-lastMove)/1000;lastMove=now;look.vy=look.vy*.6+dx*k/dtm*.4;look.vp=look.vp*.6+dy*k/dtm*.4;if(down)down.moved+=Math.abs(dx)+Math.abs(dy)}
+  else if(ptrs.size===2&&pinch){camera.fov=clamp(pinch.fov*pinch.d/pd(),40,80);updFov()}});
+function up(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;
+  if(ptrs.size===0){look.drag=false;cv.classList.remove('drag');if(performance.now()-lastMove>90){look.vy=look.vp=0}
+    if(down&&down.moved<10&&performance.now()-down.t<600&&e.type==='pointerup')tap(e.clientX,e.clientY);down=null}}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();camera.fov=clamp(camera.fov+e.deltaY*.03,40,80);updFov()},{passive:false});
+function castAt(x,y){if(!cur)return null;ndc.set(x/innerWidth*2-1,-(y/innerHeight)*2+1);ray.setFromCamera(ndc,camera);const h=ray.intersectObjects(cur.hits,false);return h.length?h[0].object.userData:null}
+function tap(x,y){if(!S.started||S.escaped||modalOpen)return;const d=castAt(x,y);if(!d)return;
+  if(d.id==='door'){if(cur.isSolved()||ADMIN){S.room===NROOM-1?escapeNow():goRoom(S.room+1)}else{auBuzz();toast('문이 잠겨 있어요. 이 방의 문제를 모두 풀어야 열려요.')}return}
+  const f=cur.on[d.id];if(f)f()}
+let hovT=0;function hover(e){if(!S.started||S.escaped||touch)return;const now=performance.now();if(now-hovT<80)return;hovT=now;cv.style.cursor=castAt(e.clientX,e.clientY)?'pointer':''}
+addEventListener('keydown',e=>{if(e.key==='Escape'&&modalOpen){closeModal();return}if(modalOpen||!S.started)return;const s=.08;
+  if(e.key==='ArrowLeft')look.yaw+=s;else if(e.key==='ArrowRight')look.yaw-=s;else if(e.key==='ArrowUp')look.pitch+=s;else if(e.key==='ArrowDown')look.pitch-=s});
+
+/* ---------------- start / resume ---------------- */
+function begin(resume){auInit();$('adminStart').hidden=true;const st=$('start');st.style.transition='opacity .8s';st.style.opacity='0';setTimeout(()=>st.hidden=true,800);
+  if(!resume){const team=$('team').value.trim();S=freshState();S.team=team;built.length=0}
+  S.started=true;save();
+  if(resume){fade(()=>enterRoom(S.room))}else{enterRoom(0);S.intro[0]=true;save();setTimeout(()=>introCard(0),700)}}
+$('startBtn').onclick=()=>begin(false);
+$('team').addEventListener('keydown',e=>{if(e.key==='Enter')begin(false)});
+$('resumeBtn').onclick=()=>{const s=loadSaved();if(s){S=Object.assign(freshState(),s);built.length=0;$('team').value=S.team;begin(true)}};
+
+/* ---------------- loop ---------------- */
+let last=performance.now(),timerShown=-1;
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;const t=now/1000;
+  if(!look.drag){look.yaw+=look.vy*dt;look.pitch+=look.vp*dt;const dec=Math.pow(.03,dt);look.vy*=dec;look.vp*=dec}
+  if(!S.started||S.escaped)look.yaw+=(S.escaped?.05:.04)*dt;
+  if(cur){look.pitch=clamp(look.pitch,cur.pmin,cur.pmax);camera.rotation.set(look.pitch,look.yaw,0);
+    cur.spin.forEach(m=>m.rotation.y+=dt*(reduce?.5:2.2));updMarkers(cur,t);cur.pulse.forEach(s=>s.material.opacity=.25+.2*Math.sin(t*3));
+    if(cur.fire&&S.done['r2.kiln']){cur.fire.material.opacity=.75+.2*Math.sin(t*9)*Math.sin(t*3.3);cur.fireL.intensity=1.4+.4*Math.sin(t*7)}
+    if(cur.update2)cur.update2(t)}
+  if(S.started&&!S.escaped&&!ADMIN&&!document.hidden){S.elapsed+=dt;const s=Math.floor(S.elapsed);if(s!==timerShown){timerShown=s;$('timer').textContent=fmt(s);if(s%10===0)save()}}
+  if(cur)renderer.render(cur.scene,camera);requestAnimationFrame(frame)}
+
+function boot(){const saved=loadSaved();if(saved)$('resumeBtn').hidden=false;
+  cur=getRoom(0);camera.position.set(...cur.camPos);look.yaw=.6;look.pitch=-.05;requestAnimationFrame(frame)}
+if(/[?&]debug/.test(location.search))window.__dbg={go:i=>{S.started=true;S.visited=S.visited.map(()=>true);$('start').hidden=true;enterRoom(i)},S:()=>S,solve:i=>{const R=getRoom(i);R.need.forEach(id=>S.done[R.key+'.'+id]=true);S.kilnOrder=true;R.onSolved&&R.onSolved();Object.keys(R.items).forEach(id=>markItem(R,id));renderHUD()},look,tap:id=>cur.on[id]()};
+const ready=document.fonts&&document.fonts.load?Promise.race([Promise.all(["40px 'Nanum Pen Script'","bold 40px 'Gowun Batang'","40px 'Gowun Dodum'"].map(f=>document.fonts.load(f).catch(()=>0))),new Promise(r=>setTimeout(r,3000))]):Promise.resolve();
+ready.then(boot);
+})();
+</script>
+</body>
+</html>
